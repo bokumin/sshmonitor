@@ -15,7 +15,7 @@
     <group android:id="@+id/group_bottom" android:checkableBehavior="none">
         <item
             android:id="@+id/nav_wifi_scan"
-            android:title="WiFiスキャン" />
+            android:title="@string/wifi_scan" />
         <item
             android:id="@+id/nav_remove_server"
             android:title="@string/remove_server" />

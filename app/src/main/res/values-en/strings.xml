@@ -16,6 +16,7 @@
     <string name="donate_message">Opening donation page. Would you like to proceed?</string>
     <string name="open_browser">Open Browser</string>
     <string name="connect">Connect</string>
+    <string name="wifi_scan">"Scan Wifi"</string>
     <string name="disconnect">Disconnect</string>
     <string name="connection_success">Connection successful</string>
     <string name="connection_error">Connection error: %1$s</string>

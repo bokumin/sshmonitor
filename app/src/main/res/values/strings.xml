@@ -15,6 +15,7 @@
     <string name="donate_message">寄付ページを開きます。よろしいですか？</string>
     <string name="open_browser">ブラウザを開く</string>
     <string name="connect">接続</string>
+    <string name="wifi_scan">"Wifiスキャン"</string>
     <string name="disconnect">切断</string>
     <string name="connection_success">接続に成功しました</string>
     <string name="connection_error">接続エラー: %1$s</string>
