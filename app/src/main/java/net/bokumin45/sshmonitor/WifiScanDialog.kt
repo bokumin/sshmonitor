@@ -1,4 +1,3 @@
-// WifiScanDialog.kt
 package net.bokumin45.sshmonitor
 
 import android.app.Dialog
@@ -11,9 +10,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.*
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.net.InetAddress
 import android.net.wifi.WifiManager
 import android.content.Intent
 import android.provider.Settings
@@ -69,6 +68,61 @@ class WifiScanDialog(
     private lateinit var adapter: WifiScanAdapter
     private var scanJob: Job? = null
 
+    // よく使用されるポートのリスト
+    private val portsToScan = listOf(
+        // 基本的なサービス
+        20, 21,   // FTP
+        22,       // SSH
+        23,       // Telnet
+        25,       // SMTP
+        53,       // DNS
+        80,       // HTTP
+        110,      // POP3
+        143,      // IMAP
+        443,      // HTTPS
+
+        // データベース
+        1433,     // MS SQL
+        1521,     // Oracle
+        3306,     // MySQL
+        5432,     // PostgreSQL
+        27017,    // MongoDB
+
+        // その他の一般的なサービス
+        135,      // Microsoft RPC
+        137,      // NetBIOS
+        138,      // NetBIOS
+        139,      // NetBIOS
+        445,      // SMB
+        548,      // AFP
+        631,      // IPP (プリンター)
+        3389,     // RDP
+        5900,     // VNC
+        8080,     // 代替HTTP
+        8443,     // 代替HTTPS
+
+        // メディアサービス
+        554,      // RTSP
+        1935,     // RTMP
+        8554,     // 代替RTSP
+
+        // IoTデバイス
+        1883,     // MQTT
+        8883,     // MQTT over SSL
+        5683,     // CoAP
+
+        // NAS関連
+        111,      // RPCBind
+        2049,     // NFS
+
+        // 開発関連
+        3000,     // 開発サーバー
+        4000,     // 開発サーバー
+        5000,     // 開発サーバー
+        8000,     // 開発サーバー
+        9000      // 開発サーバー
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.dialog_wifi_scan)
@@ -112,7 +166,6 @@ class WifiScanDialog(
         }
         startScan()
     }
-
     private fun startScan() {
         progressBar.visibility = View.VISIBLE
         tvStatus.text = "スキャン中..."
@@ -127,33 +180,85 @@ class WifiScanDialog(
                 val subnet = getSubnet(ipAddress)
 
                 val discoveredHosts = mutableListOf<ScanResult>()
+                val scannedIPs = mutableSetOf<String>()
+
+                // 並列処理用のコルーチンのリスト
+                val scanJobs = mutableListOf<Deferred<Unit>>()
 
                 for (i in 1..254) {
                     if (!isActive) return@launch
 
                     val testIp = "${subnet}.$i"
-                    if (isPortOpen(testIp, 22)) {
-                        val hostname = try {
-                            InetAddress.getByName(testIp).canonicalHostName
-                        } catch (e: Exception) {
-                            testIp
+
+                    // 各IPアドレスに対して並列でスキャンを実行
+                    val job = async {
+                        var isHostAlive = false
+
+                        // ポートスキャン
+                        run portscan@ {
+                            for (port in portsToScan) {
+                                if (!isActive) return@async
+                                try {
+                                    Socket().use { socket ->
+                                        socket.soTimeout = 5000
+                                        socket.connect(InetSocketAddress(testIp, port), 5000)
+
+                                        withContext(Dispatchers.Main) {
+                                            tvStatus.text = "Port $port open on $testIp"
+                                        }
+
+                                        isHostAlive = true
+                                        return@portscan
+                                    }
+                                } catch (e: Exception) {
+                                    // 接続に失敗した場合は次のポートを試す
+                                    continue
+                                }
+                            }
                         }
 
-                        val result = ScanResult(testIp, hostname)
-                        discoveredHosts.add(result)
-
-                        withContext(Dispatchers.Main) {
-                            results.add(result)
-                            adapter.notifyItemInserted(results.size - 1)
-                            tvStatus.text = "${results.size}件のサーバーが見つかりました"
+                        // ICMPチェック（ポートスキャンで見つからなかった場合）
+                        if (!isHostAlive) {
+                            try {
+                                val inetAddress = InetAddress.getByName(testIp)
+                                isHostAlive = inetAddress.isReachable(1000)
+                            } catch (e: Exception) {
+                                // ignore
+                            }
                         }
+
+                        if (isHostAlive && !scannedIPs.contains(testIp)) {
+                            scannedIPs.add(testIp)
+                            val hostname = try {
+                                InetAddress.getByName(testIp).canonicalHostName
+                            } catch (e: Exception) {
+                                testIp
+                            }
+
+                            val result = ScanResult(testIp, hostname)
+
+                            withContext(Dispatchers.Main) {
+                                results.add(result)
+                                adapter.notifyItemInserted(results.size - 1)
+                                tvStatus.text = "${results.size}件のデバイスが見つかりました"
+                            }
+                        }
+                    }
+                    scanJobs.add(job)
+
+                    // 20個ずつ並列実行して、完了を待つ
+                    if (scanJobs.size >= 20 || i == 254) {
+                        scanJobs.awaitAll()
+                        scanJobs.clear()
                     }
                 }
 
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
                     if (results.isEmpty()) {
-                        tvStatus.text = "サーバーが見つかりませんでした"
+                        tvStatus.text = "デバイスが見つかりませんでした"
+                    } else {
+                        tvStatus.text = "スキャン完了: ${results.size}件のデバイスが見つかりました"
                     }
                 }
             } catch (e: Exception) {
@@ -172,16 +277,5 @@ class WifiScanDialog(
         ipBytes[2] = (ipAddress shr 16 and 0xff).toByte()
         ipBytes[3] = (ipAddress shr 24 and 0xff).toByte()
         return "${ipBytes[3] and 0xFF.toByte()}.${ipBytes[2] and 0xFF.toByte()}.${ipBytes[1] and 0xFF.toByte()}"
-    }
-
-    private fun isPortOpen(ip: String, port: Int): Boolean {
-        return try {
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress(ip, port), 300)
-                true
-            }
-        } catch (e: Exception) {
-            false
-        }
     }
 }
