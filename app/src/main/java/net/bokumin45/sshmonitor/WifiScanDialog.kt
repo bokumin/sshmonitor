@@ -176,13 +176,13 @@ class WifiScanDialog(
             try {
                 val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
                 val dhcpInfo = wifiManager.dhcpInfo
-                val ipAddress = dhcpInfo.ipAddress
-                val subnet = getSubnet(ipAddress)
+                val subnet = getSubnet(dhcpInfo.ipAddress)
 
-                val discoveredHosts = mutableListOf<ScanResult>()
+                withContext(Dispatchers.Main) {
+                    tvStatus.text = "サブネット: $subnet をスキャン中..."
+                }
+
                 val scannedIPs = mutableSetOf<String>()
-
-                // 並列処理用のコルーチンのリスト
                 val scanJobs = mutableListOf<Deferred<Unit>>()
 
                 for (i in 1..254) {
@@ -190,41 +190,17 @@ class WifiScanDialog(
 
                     val testIp = "${subnet}.$i"
 
-                    // 各IPアドレスに対して並列でスキャンを実行
                     val job = async {
-                        var isHostAlive = false
-
-                        // ポートスキャン
-                        run portscan@ {
-                            for (port in portsToScan) {
-                                if (!isActive) return@async
-                                try {
-                                    Socket().use { socket ->
-                                        socket.soTimeout = 5000
-                                        socket.connect(InetSocketAddress(testIp, port), 5000)
-
-                                        withContext(Dispatchers.Main) {
-                                            tvStatus.text = "Port $port open on $testIp"
-                                        }
-
-                                        isHostAlive = true
-                                        return@portscan
-                                    }
-                                } catch (e: Exception) {
-                                    // 接続に失敗した場合は次のポートを試す
-                                    continue
-                                }
-                            }
+                        // まずICMPでチェック
+                        var isHostAlive = try {
+                            InetAddress.getByName(testIp).isReachable(500)
+                        } catch (e: Exception) {
+                            false
                         }
 
-                        // ICMPチェック（ポートスキャンで見つからなかった場合）
+                        // ICMPで見つからない場合は主要なポートをチェック
                         if (!isHostAlive) {
-                            try {
-                                val inetAddress = InetAddress.getByName(testIp)
-                                isHostAlive = inetAddress.isReachable(1000)
-                            } catch (e: Exception) {
-                                // ignore
-                            }
+                            isHostAlive = checkPorts(testIp)
                         }
 
                         if (isHostAlive && !scannedIPs.contains(testIp)) {
@@ -235,10 +211,8 @@ class WifiScanDialog(
                                 testIp
                             }
 
-                            val result = ScanResult(testIp, hostname)
-
                             withContext(Dispatchers.Main) {
-                                results.add(result)
+                                results.add(ScanResult(testIp, hostname))
                                 adapter.notifyItemInserted(results.size - 1)
                                 tvStatus.text = "${results.size}件のデバイスが見つかりました"
                             }
@@ -246,8 +220,8 @@ class WifiScanDialog(
                     }
                     scanJobs.add(job)
 
-                    // 20個ずつ並列実行して、完了を待つ
-                    if (scanJobs.size >= 20 || i == 254) {
+                    // 10個ずつ並列実行（負荷軽減）
+                    if (scanJobs.size >= 10 || i == 254) {
                         scanJobs.awaitAll()
                         scanJobs.clear()
                     }
@@ -270,12 +244,26 @@ class WifiScanDialog(
         }
     }
 
-    private fun getSubnet(ipAddress: Int): String {
-        val ipBytes = ByteArray(4)
-        ipBytes[0] = (ipAddress and 0xff).toByte()
-        ipBytes[1] = (ipAddress shr 8 and 0xff).toByte()
-        ipBytes[2] = (ipAddress shr 16 and 0xff).toByte()
-        ipBytes[3] = (ipAddress shr 24 and 0xff).toByte()
-        return "${ipBytes[3] and 0xFF.toByte()}.${ipBytes[2] and 0xFF.toByte()}.${ipBytes[1] and 0xFF.toByte()}"
+    private fun checkPorts(ip: String): Boolean {
+        for (port in listOf(22, 80, 443, 8080)) {
+            try {
+                Socket().use { socket ->
+                    socket.soTimeout = 300
+                    socket.connect(InetSocketAddress(ip, port), 300)
+                    return true
+                }
+            } catch (e: Exception) {
+            }
+        }
+        return false
     }
+    private fun getSubnet(ipAddress: Int): String {
+        return String.format(
+            "%d.%d.%d",
+            ipAddress and 0xff,
+            (ipAddress shr 8) and 0xff,
+            (ipAddress shr 16) and 0xff
+        )
+    }
+
 }
