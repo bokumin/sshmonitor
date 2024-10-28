@@ -8,7 +8,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="WiFiスキャン"
+        android:text="@string/wifi_scan"
         android:textSize="20sp"
         android:textStyle="bold"
         android:layout_marginBottom="16dp"/>
@@ -17,7 +17,7 @@
         android:id="@+id/btnStartScan"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="スキャン開始"/>
+        android:text="@string/wifi_start"/>
 
     <ProgressBar
         android:id="@+id/progressBar"
@@ -34,7 +34,7 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"
         android:gravity="center"
-        android:text="スキャンを開始してください"/>
+        android:text="@string/pwifi_start"/>
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
@@ -48,6 +48,6 @@
         android:id="@+id/btnCancel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="キャンセル"/>
+        android:text="@string/cancel"/>
 
 </LinearLayout>
