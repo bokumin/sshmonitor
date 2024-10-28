@@ -5,12 +5,13 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="16dp"
-    android:theme="@style/ThemeOverlay.AppCompat.Dark">
+    android:background="@color/purple_200">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="サーバー設定"
+        android:textColor="@color/drawer_header_text"
         android:textAppearance="@style/TextAppearance.AppCompat.Body1"/>
 
 </LinearLayout>

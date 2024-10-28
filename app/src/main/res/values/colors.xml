@@ -7,4 +7,16 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- ダークモードのカラー -->
+    <color name="background_dark">#121212</color>
+    <color name="surface_dark">#1E1E1E</color>
+    <color name="text_primary_dark">#DEFFFFFF</color>
+    <color name="text_secondary_dark">#99FFFFFF</color>
+    <color name="dialog_background">#121212</color>
+    <color name="dialog_text">#DEFFFFFF</color>
+    <color name="drawer_background">#121212</color>
+    <color name="drawer_text">#DEFFFFFF</color>
+    <color name="drawer_header_background">#1E1E1E</color>
+    <color name="drawer_header_text">#DEFFFFFF</color>
 </resources>

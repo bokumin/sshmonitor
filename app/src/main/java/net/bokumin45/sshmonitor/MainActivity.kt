@@ -659,6 +659,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_remove_server -> showRemoveServerDialog()
             R.id.nav_language -> toggleLanguage()
             R.id.nav_donate -> showDonateDialog()
+            R.id.nav_wifi_scan -> {
+                WifiScanDialog(this) { ipAddress, hostname ->
+                    // スキャン結果から新規サーバー追加ダイアログを表示
+                    val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
+                    dialogView.findViewById<EditText>(R.id.etHost).setText(ipAddress)
+                    dialogView.findViewById<EditText>(R.id.etPort).setText("22")
+
+                    AlertDialog.Builder(this)
+                        .setTitle("サーバーを追加")
+                        .setView(dialogView)
+                        // 既存の追加処理と同じ
+                        .show()
+                }.show()
+            }
             else -> {
                 val serverIndex = item.itemId - Menu.FIRST
                 if (serverIndex in serverConfigs.indices) {
