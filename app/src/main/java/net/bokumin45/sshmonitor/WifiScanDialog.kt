@@ -17,7 +17,6 @@ import android.net.wifi.WifiManager
 import android.content.Intent
 import android.provider.Settings
 import android.view.ViewGroup
-import kotlin.experimental.and
 
 data class ScanResult(
     val ipAddress: String,
@@ -31,7 +30,7 @@ class WifiScanAdapter(
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvIpAddress: TextView = view.findViewById(R.id.tvIpAddress)
-        val tvHostname: TextView = view.findViewById(R.id.tvHostname)
+      //  val tvHostname: TextView = view.findViewById(R.id.tvHostname)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -43,7 +42,7 @@ class WifiScanAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val result = results[position]
         holder.tvIpAddress.text = result.ipAddress
-        holder.tvHostname.text = result.hostname
+        //holder.tvHostname.text = result.hostname
         holder.itemView.setOnClickListener { onItemClick(result) }
     }
 
