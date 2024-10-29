@@ -20,6 +20,9 @@
     <string name="update_server">Server information updated</string>
     <string name="change_language">日本語</string>
     <string name="donate">Donate</string>
+
+    <string name="no_key_selected">No key selected</string>
+
     <string name="select_file">Selected Key</string>
     <string name="not_select_file">not Selected Key</string>
     <string name="require_host_user">Please enter hostname and username</string>

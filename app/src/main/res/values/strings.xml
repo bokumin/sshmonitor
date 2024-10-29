@@ -16,6 +16,8 @@
     <string name="remove_server">サーバーを削除</string>
     <string name="donate">寄付</string>
 
+    <string name="no_key_selected">鍵が選択されていません</string>
+
     <string name="edit_server">サーバー情報を編集</string>
     <string name="update">更新</string>
     <string name="update_server">サーバー情報が更新されました</string>

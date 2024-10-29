@@ -1,5 +1,7 @@
 package net.bokumin45.sshmonitor
 
+import android.animation.ArgbEvaluator
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -17,6 +19,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.documentfile.provider.DocumentFile
@@ -126,8 +129,25 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupListeners()
         setupCharts()
         updateServerSpinner()
-    }
+ //       animateToolbarBackground()
 
+    }
+    private fun animateToolbarBackground() {
+        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+
+        val colorFrom = ContextCompat.getColor(this, R.color.black)
+        val colorTo = ContextCompat.getColor(this, R.color.purple_200)
+
+        ValueAnimator.ofObject(ArgbEvaluator(), colorFrom, colorTo).apply {
+            duration = 2000
+            addUpdateListener { animator ->
+                toolbar.setBackgroundColor(animator.animatedValue as Int)
+            }
+
+            startDelay = 600
+            start()
+        }
+    }
     private fun initializeViews() {
         drawerLayout = findViewById(R.id.drawerLayout)
         navView = findViewById(R.id.navView)
@@ -746,15 +766,47 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_donate -> showDonateDialog()
             R.id.nav_wifi_scan -> {
                 WifiScanDialog(this) { ipAddress, hostname ->
-                    // スキャン結果から新規サーバー追加ダイアログを表示
                     val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
-                    dialogView.findViewById<EditText>(R.id.etHost).setText(ipAddress)
-                    dialogView.findViewById<EditText>(R.id.etPort).setText("22")
+                    val etHost = dialogView.findViewById<EditText>(R.id.etHost)
+                    val etPort = dialogView.findViewById<EditText>(R.id.etPort)
+                    val etUsername = dialogView.findViewById<EditText>(R.id.etUsername)
+                    val etPassword = dialogView.findViewById<EditText>(R.id.etPassword)
+                    val btnSelectKey = dialogView.findViewById<Button>(R.id.btnSelectKey)
+                    val tvSelectedKey = dialogView.findViewById<TextView>(R.id.tvSelectedKey)
+
+                    etHost.setText(ipAddress)
+                    etPort.setText("22")
+                    selectedKeyUri = null
+                    tvSelectedKey.text = getString(R.string.no_key_selected)
+
+                    btnSelectKey.setOnClickListener {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                        }
+                        startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
+                    }
 
                     AlertDialog.Builder(this)
-                        .setTitle("サーバーを追加")
+                        .setTitle(getString(R.string.add_server))
                         .setView(dialogView)
-                        // 既存の追加処理と同じ
+                        .setPositiveButton(getString(R.string.add)) { _, _ ->
+                            val host = etHost.text.toString()
+                            val port = etPort.text.toString().toIntOrNull() ?: 22
+                            val username = etUsername.text.toString()
+                            val password = etPassword.text.toString().takeIf { it.isNotEmpty() }
+
+                            if (host.isNotEmpty() && username.isNotEmpty()) {
+                                val config = ServerConfig(host, port, username, selectedKeyUri, password)
+                                serverConfigs.add(config)
+                                serverConfigManager.saveServerConfig(config)
+                                updateServerSpinner()
+                            } else {
+                                Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .setNegativeButton(getString(R.string.cancel), null)
                         .show()
                 }.show()
             }
