@@ -43,6 +43,7 @@
     <string name="wifi_start">"　　　Start Scan　　　"</string>
     <string name="pwifi_start">Please Start Scan</string>
     <string name="subnet">Subnet</string>
+    <string name="graph_settings">グラフ設定</string>
     <string name="scanning">Scanning...</string>
     <string name="scanned">Scan Completed</string>
     <string name="found_device">" devices found　　　　　　　"</string>>

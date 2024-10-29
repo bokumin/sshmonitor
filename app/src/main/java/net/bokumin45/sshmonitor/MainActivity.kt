@@ -21,8 +21,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
-import androidx.drawerlayout.widget.DrawerLayout
 import androidx.documentfile.provider.DocumentFile
+import androidx.drawerlayout.widget.DrawerLayout
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -30,6 +30,7 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.google.android.material.navigation.NavigationView
+import com.google.gson.Gson
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
@@ -40,6 +41,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.Security
 import java.util.Locale
+
 
 data class ServerConfig(
     val host: String,
@@ -96,10 +98,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var spinnerServers: Spinner
     private lateinit var btnConnect: Button
     private lateinit var chartCPU: LineChart
+    private lateinit var chartGPU: LineChart
     private lateinit var chartMemory: LineChart
     private lateinit var chartDisk: LineChart
     private lateinit var tvUptime: TextView
 
+    private val gson = Gson()
     private lateinit var serverConfigManager: ServerConfigManager
     private var serverConfigs: MutableList<ServerConfig> = mutableListOf()
     private var currentSession: Session? = null
@@ -112,6 +116,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var backgroundJob: Job? = null
     private var isInBackground = false
     private var currentDialogView: View? = null
+
+    private var graphSettings = listOf(
+        GraphSetting("CPU", true, 0),
+        GraphSetting("Memory", true, 1),
+        GraphSetting("Disk", true, 2),
+        GraphSetting("GPU", true, 3)
+    )
+    private data class GraphView(
+        val name: String,
+        val chart: LineChart,
+        var order: Int
+    )
+
+    private lateinit var graphViews: List<GraphView>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,10 +144,15 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         initializeViews()
         setupToolbar()
+        loadGraphSettings()
+        updateGraphVisibility()
         setupDrawer()
         setupListeners()
         setupCharts()
         updateServerSpinner()
+        initializeGraphViews()
+        loadGraphSettings()
+        updateGraphVisibility()
  //       animateToolbarBackground()
 
     }
@@ -149,6 +172,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             start()
         }
     }
+    private fun initializeGraphViews() {
+        graphViews = listOf(
+            GraphView("CPU", chartCPU, 0),
+            GraphView("Memory", chartMemory, 1),
+            GraphView("Disk", chartDisk, 2),
+            GraphView("GPU", chartGPU, 3)
+        )
+    }
     private fun initializeViews() {
         drawerLayout = findViewById(R.id.drawerLayout)
         navView = findViewById(R.id.navView)
@@ -156,6 +187,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         spinnerServers = findViewById(R.id.spinnerServers)
         btnConnect = findViewById(R.id.btnConnect)
         chartCPU = findViewById(R.id.chartCPU)
+        chartGPU = findViewById(R.id.chartGPU)
         chartMemory = findViewById(R.id.chartMemory)
         chartDisk = findViewById(R.id.chartDisk)
         tvUptime = findViewById(R.id.tvUptime)
@@ -165,6 +197,80 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setHomeButtonEnabled(true)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_graph_settings -> {
+                showGraphSettingsDialog()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun showGraphSettingsDialog() {
+        DialogGraphSettings(this, graphSettings) { newSettings ->
+            graphSettings = newSettings
+            saveGraphSettings()
+            updateGraphVisibility()
+        }.show()
+    }
+
+    private fun updateGraphVisibility() {
+        val orderedGraphs = graphSettings.sortedBy { it.order }
+        val parentLayout = chartCPU.parent as? LinearLayout ?: return
+
+        // 既存のグラフを一時的に親レイアウトから削除
+        parentLayout.removeView(chartCPU)
+        parentLayout.removeView(chartMemory)
+        parentLayout.removeView(chartDisk)
+        parentLayout.removeView(chartGPU)
+
+        // 設定に基づいて表示/非表示を設定し、順序通りに再追加
+        orderedGraphs.forEach { setting ->
+            val chart = when (setting.name) {
+                "CPU" -> {
+                    chartCPU.visibility = if (setting.isVisible) View.VISIBLE else View.GONE
+                    chartCPU
+                }
+                "Memory" -> {
+                    chartMemory.visibility = if (setting.isVisible) View.VISIBLE else View.GONE
+                    chartMemory
+                }
+                "Disk" -> {
+                    chartDisk.visibility = if (setting.isVisible) View.VISIBLE else View.GONE
+                    chartDisk
+                }
+                "GPU" -> {
+                    chartGPU.visibility = if (setting.isVisible) View.VISIBLE else View.GONE
+                    chartGPU
+                }
+                else -> null
+            }
+
+            // チャートをレイアウトに追加（非表示のものも含む）
+            chart?.let { parentLayout.addView(it) }
+        }
+    }
+
+    private fun saveGraphSettings() {
+        val sharedPrefs = getSharedPreferences("GraphSettings", MODE_PRIVATE)
+        val settingsJson = gson.toJson(graphSettings)
+        sharedPrefs.edit().putString("settings", settingsJson).apply()
+    }
+
+    private fun loadGraphSettings() {
+        val sharedPrefs = getSharedPreferences("GraphSettings", Context.MODE_PRIVATE)
+        val settingsJson = sharedPrefs.getString("settings", null)
+        if (settingsJson != null) {
+            graphSettings = gson.fromJson(settingsJson, Array<GraphSetting>::class.java).toList()
+        }
     }
 
     private fun setupDrawer() {
@@ -283,6 +389,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupChart(chartCPU, "CPU", Color.RED)
         setupChart(chartMemory, "MEM", Color.GREEN)
         setupChart(chartDisk, "DISK", Color.BLUE)
+        setupChart(chartGPU, "GPU", Color.MAGENTA)
     }
 
     private fun updateServerSpinner() {
@@ -595,13 +702,48 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         chartCPU.clear()
         chartMemory.clear()
         chartDisk.clear()
+        chartGPU.clear()
 
         setupChart(chartCPU, "CPU", Color.RED)
         setupChart(chartMemory, "MEM", Color.GREEN)
         setupChart(chartDisk, "DISK", Color.BLUE)
+        setupChart(chartGPU, "GPU", Color.MAGENTA)
 
         tvUptime.text = getString(R.string.uptime_placeholder)
     }
+
+    private fun getGPUUsage(): Float {
+        // NVIDIAのGPUの場合
+        val nvidiaSmiOutput = executeCommand("which nvidia-smi").trim()
+        if (nvidiaSmiOutput.isNotEmpty()) {
+            return executeCommand(
+                "nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits"
+            ).toFloatOrNull() ?: 0f
+        }
+
+        // AMD GPUの場合
+        val rocmSmiOutput = executeCommand("which rocm-smi").trim()
+        if (rocmSmiOutput.isNotEmpty()) {
+            return executeCommand(
+                "rocm-smi --showuse"
+            ).let { output ->
+                // ROCm-SMIの出力から使用率を抽出
+                val regex = "GPU use \\(%\\)\\s*:\\s*(\\d+)".toRegex()
+                regex.find(output)?.groupValues?.get(1)?.toFloatOrNull() ?: 0f
+            }
+        }
+
+        // Intel GPUの場合
+        val intelGpuTopOutput = executeCommand("which intel_gpu_top").trim()
+        if (intelGpuTopOutput.isNotEmpty()) {
+            return executeCommand(
+                "intel_gpu_top -s 1 -o - | head -n 2 | tail -n 1 | awk '{print $2}'"
+            ).toFloatOrNull() ?: 0f
+        }
+
+        return 0f
+    }
+
     private fun startMonitoring() {
         monitoringJob = CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -609,8 +751,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     val cpuUsage = getCPUUsage()
                     val memoryUsage = getMemoryUsage()
                     val diskUsage = getDiskUsage()
+                    val gpuUsage = getGPUUsage()
                     val uptime = getUptime()
-                    updateCharts(cpuUsage, memoryUsage, diskUsage)
+                    updateCharts(cpuUsage, memoryUsage, diskUsage,gpuUsage)
                     updateUptime(uptime)
                     delay(500)
                 }
@@ -705,7 +848,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    private suspend fun updateCharts(cpuUsage: Float, memoryUsage: Float, diskUsage: Float) {
+    private suspend fun updateCharts(cpuUsage: Float, memoryUsage: Float, diskUsage: Float,gpuUsage: Float) {
         withContext(Dispatchers.Main) {
             updateChart(chartCPU, cpuUsage)
             updateChart(chartMemory, memoryUsage)
