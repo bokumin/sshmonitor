@@ -178,7 +178,7 @@ class WifiScanDialog(
                 val subnet = getSubnet(dhcpInfo.ipAddress)
 
                 withContext(Dispatchers.Main) {
-                    tvStatus.text = "サブネット: $subnet をスキャン中..."
+                    tvStatus.text = context.getString(R.string.subnet)+": $subnet"+context.getString(R.string.scanning)
                 }
 
                 val scannedIPs = mutableSetOf<String>()

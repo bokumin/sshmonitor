@@ -42,6 +42,7 @@
     <string name="wifi_scan">Wifiスキャン</string>
     <string name="wifi_start">"　　　スキャン開始　　　"</string>
     <string name="pwifi_start">スキャンを開始してください</string>
+    <string name="subnet">サブネット</string>
     <string name="scanning">スキャン中...</string>
     <string name="scanned">スキャン完了</string>
     <string name="found_device">件のデバイスが見つかりました</string>
