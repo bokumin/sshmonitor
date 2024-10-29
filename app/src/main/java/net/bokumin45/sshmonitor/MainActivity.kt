@@ -51,7 +51,7 @@ data class ServerConfig(
     var password: String? = null
 ){
     override fun toString(): String {
-        return host
+        return "$host (${username})"
     }
 }
 
