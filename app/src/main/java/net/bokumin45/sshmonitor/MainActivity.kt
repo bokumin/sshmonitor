@@ -111,6 +111,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var channels: MutableList<ChannelExec> = mutableListOf()
     private var backgroundJob: Job? = null
     private var isInBackground = false
+    private var currentDialogView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -317,6 +318,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private fun showEditServerDialog(index: Int) {
         val config = serverConfigs[index]
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
+        currentDialogView = dialogView
         val etHost = dialogView.findViewById<EditText>(R.id.etHost)
         val etPort = dialogView.findViewById<EditText>(R.id.etPort)
         val etUsername = dialogView.findViewById<EditText>(R.id.etUsername)
@@ -330,7 +332,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         etPassword.setText(config.password)
         selectedKeyUri = config.privateKeyUri
         tvSelectedKey.text = if (selectedKeyUri != null) {
-            getString(R.string.select_file)+": ${DocumentFile.fromSingleUri(this, selectedKeyUri!!)?.name}"
+            getString(R.string.select_file) + ": ${DocumentFile.fromSingleUri(this, selectedKeyUri!!)?.name}"
         } else {
             getString(R.string.not_select_file)
         }
@@ -363,12 +365,18 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton(getString(R.string.cancel), null)
+            .setNegativeButton(getString(R.string.cancel)) { _, _ ->
+                currentDialogView = null
+            }
+            .setOnDismissListener {
+                currentDialogView = null
+            }
             .show()
     }
 
     private fun showAddServerDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
+        currentDialogView = dialogView
         val etHost = dialogView.findViewById<EditText>(R.id.etHost)
         val etPort = dialogView.findViewById<EditText>(R.id.etPort)
         val etUsername = dialogView.findViewById<EditText>(R.id.etUsername)
@@ -377,6 +385,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val tvSelectedKey = dialogView.findViewById<TextView>(R.id.tvSelectedKey)
 
         selectedKeyUri = null
+        tvSelectedKey.text = getString(R.string.not_select_file)
 
         btnSelectKey.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -405,7 +414,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton(getString(R.string.cancel), null)
+            .setNegativeButton(getString(R.string.cancel)) { _, _ ->
+                currentDialogView = null
+            }
+            .setOnDismissListener {
+                currentDialogView = null
+            }
             .show()
     }
 
@@ -458,8 +472,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         if (requestCode == REQUEST_CODE_OPEN_FILE && resultCode == RESULT_OK) {
             data?.data?.let { uri ->
                 val fileName = DocumentFile.fromSingleUri(this, uri)?.name
-                val dialogView = (currentFocus?.parent as? View)?.findViewById<TextView>(R.id.tvSelectedKey)
-                dialogView?.text = getString(R.string.select_file)+": $fileName"
+
+                currentDialogView?.findViewById<TextView>(R.id.tvSelectedKey)?.let { textView ->
+                    textView.text = getString(R.string.select_file) + ": $fileName"
+                }
 
                 contentResolver.takePersistableUriPermission(
                     uri,
@@ -467,15 +483,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 )
 
                 selectedKeyUri?.let { oldUri ->
-                    contentResolver.releasePersistableUriPermission(
-                        oldUri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
+                    try {
+                        contentResolver.releasePersistableUriPermission(
+                            oldUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
                 selectedKeyUri = uri
             }
         }
     }
+
 
     private fun connectSSH(config: ServerConfig) {
         resetCharts()
@@ -786,6 +807,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
                         }
                         startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
+
                     }
 
                     AlertDialog.Builder(this)
@@ -828,5 +850,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     override fun onDestroy() {
         super.onDestroy()
         disconnectSSH()
+        currentDialogView = null
     }
 }
