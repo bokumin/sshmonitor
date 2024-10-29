@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="サーバー設定"
+        android:text="@string/setting_server"
         android:textColor="@color/drawer_header_text"
         android:textAppearance="@style/TextAppearance.AppCompat.Body1"/>
 

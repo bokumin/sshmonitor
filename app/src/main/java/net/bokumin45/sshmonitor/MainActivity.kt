@@ -105,6 +105,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private val REQUEST_CODE_OPEN_FILE = 1
 
+    private var channels: MutableList<ChannelExec> = mutableListOf()
+    private var backgroundJob: Job? = null
+    private var isInBackground = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -167,11 +171,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     disconnectSSH()
                 }
             } else {
-                Toast.makeText(this, "サーバーを選択してください", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.a_server_select), Toast.LENGTH_SHORT).show()
             }
         }
 
-        // スピナーにリスナーを追加
         spinnerServers.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (currentSession != null) {
@@ -181,7 +184,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {
-                // 何もしない
             }
         }
     }    private fun setupChart(chart: LineChart, label: String, color1: Int) {
@@ -323,9 +325,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
 
         AlertDialog.Builder(this)
-            .setTitle("サーバー情報を編集")
+            .setTitle(getString(R.string.edit_server))
             .setView(dialogView)
-            .setPositiveButton("更新") { _, _ ->
+            .setPositiveButton(getString(R.string.update)) { _, _ ->
                 val host = etHost.text.toString()
                 val port = etPort.text.toString().toIntOrNull() ?: 22
                 val username = etUsername.text.toString()
@@ -336,12 +338,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     serverConfigs[index] = updatedConfig
                     serverConfigManager.updateServerConfig(index, updatedConfig)
                     updateServerSpinner()
-                    Toast.makeText(this, "サーバー情報が更新されました", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.update_server), Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "ホスト名とユーザー名は必須です", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("キャンセル", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -366,9 +368,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
 
         AlertDialog.Builder(this)
-            .setTitle("サーバーを追加")
+            .setTitle(getString(R.string.add_server))
             .setView(dialogView)
-            .setPositiveButton("追加") { _, _ ->
+            .setPositiveButton(getString(R.string.add)) { _, _ ->
                 val host = etHost.text.toString()
                 val port = etPort.text.toString().toIntOrNull() ?: 22
                 val username = etUsername.text.toString()
@@ -378,12 +380,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     val config = ServerConfig(host, port, username, selectedKeyUri, password)
                     serverConfigs.add(config)
                     serverConfigManager.saveServerConfig(config)
-                    updateServerSpinner() // この1つの呼び出しでSpinnerとナビゲーションメニューの両方が更新される
+                    updateServerSpinner()
                 } else {
-                    Toast.makeText(this, "ホスト名とユーザー名は必須です", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("キャンセル", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -457,6 +459,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun connectSSH(config: ServerConfig) {
         resetCharts()
+        cancelBackgroundDisconnect()
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -487,19 +490,66 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    private fun disconnectSSH() {
-        monitoringJob?.cancel()
-        currentSession?.disconnect()
-        currentSession = null
+    private fun startBackgroundDisconnectTimer() {
+        cancelBackgroundDisconnect()
 
-        runOnUiThread {
-            btnConnect.text = getString(R.string.connect)
-            Toast.makeText(this, getString(R.string.disconnected), Toast.LENGTH_SHORT).show()
-            resetCharts()
-            tvUptime.text = getString(R.string.uptime_placeholder)
+        backgroundJob = CoroutineScope(Dispatchers.Main).launch {
+            try {
+                delay(60000)
+                if (isInBackground) {
+                    disconnectSSH()
+                }
+            } catch (e: CancellationException) {
+            }
         }
     }
 
+    private fun cancelBackgroundDisconnect() {
+        backgroundJob?.cancel()
+        backgroundJob = null
+        isInBackground = false
+    }
+
+
+
+    private fun disconnectSSH() {
+        try {
+            monitoringJob?.cancel()
+
+            synchronized(channels) {
+                channels.forEach { channel ->
+                    try {
+                        if (channel.isConnected) {
+                            channel.disconnect()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                channels.clear()
+            }
+
+            // セッションを切断
+            currentSession?.let { session ->
+                if (session.isConnected) {
+                    session.disconnect()
+                }
+            }
+            currentSession = null
+
+            runOnUiThread {
+                btnConnect.text = getString(R.string.connect)
+                Toast.makeText(this, getString(R.string.disconnected), Toast.LENGTH_SHORT).show()
+                resetCharts()
+                tvUptime.text = getString(R.string.uptime_placeholder)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            runOnUiThread {
+                Toast.makeText(this, "Disconnect error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     private fun resetCharts() {
         chartCPU.clear()
         chartMemory.clear()
@@ -560,11 +610,16 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         return executeCommand("uptime -p")
     }
 
+
     private fun executeCommand(command: String): String {
         val channel = currentSession?.openChannel("exec") as? ChannelExec
             ?: throw IllegalStateException("セッションが切断されました")
 
         return try {
+            synchronized(channels) {
+                channels.add(channel)
+            }
+
             channel.setCommand(command)
             val output = ByteArrayOutputStream()
             channel.outputStream = output
@@ -576,7 +631,36 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
             output.toString().trim()
         } finally {
-            channel.disconnect()
+            try {
+                if (channel.isConnected) {
+                    channel.disconnect()
+                }
+                synchronized(channels) {
+                    channels.remove(channel)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+    override fun onResume() {
+        super.onResume()
+        cancelBackgroundDisconnect()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        if (!isFinishing) {
+            isInBackground = true
+            startBackgroundDisconnectTimer()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (isFinishing) {
+            cancelBackgroundDisconnect()
+            disconnectSSH()
         }
     }
 

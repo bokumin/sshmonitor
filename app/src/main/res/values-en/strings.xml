@@ -4,14 +4,28 @@
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
 
-    <!-- New strings -->
+    <string name="hostname">Hostname</string>
+    <string name="port">Port: 22 (default)</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+
+    <string name="add">add</string>
+
+    <string name="setting_server">Setting</string>
     <string name="server_list">Server List</string>
     <string name="add_server">Add Server</string>
     <string name="remove_server">Remove Server</string>
+    <string name="edit_server">Edit Server</string>
+    <string name="update">UPD</string>
+    <string name="update_server">Server information updated</string>
     <string name="change_language">日本語</string>
     <string name="donate">Donate</string>
+    <string name="select_file">Selected Key</string>
+    <string name="not_select_file">not Selected Key</string>
+    <string name="require_host_user">Please enter hostname and username</string>
     <string name="no_servers_to_remove">No servers to remove</string>
     <string name="server_removed">Server has been removed</string>
+    <string name="a_server_select">Please select your server</string>
     <string name="cancel">Cancel</string>
     <string name="donate_message">Opening donation page. Would you like to proceed?</string>
     <string name="open_browser">Open Browser</string>

@@ -9,28 +9,28 @@
         android:id="@+id/etHost"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="ホスト名"
+        android:hint="@string/hostname"
         android:inputType="text" />
 
     <EditText
         android:id="@+id/etPort"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="ポート番号 (デフォルト: 22)"
+        android:hint="@string/port"
         android:inputType="number" />
 
     <EditText
         android:id="@+id/etUsername"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="ユーザー名"
+        android:hint="@string/username"
         android:inputType="text" />
 
     <EditText
         android:id="@+id/etPassword"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="パスワード (オプション)"
+        android:hint="@string/password"
         android:inputType="textPassword" />
 
     <LinearLayout

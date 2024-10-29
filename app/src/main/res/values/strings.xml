@@ -3,14 +3,29 @@
     <string name="navigation_drawer_open">Open navigation drawer</string>
     <string name="navigation_drawer_close">Close navigation drawer</string>
 
-    <!-- New strings -->
+    <string name="hostname">ホスト名</string>
+    <string name="port">ポート番号(デフォルト:22)</string>
+    <string name="username">ユーザー名</string>
+    <string name="password">パスワード</string>
+
+    <string name="add">追加</string>
+
+    <string name="setting_server">サーバー設定</string>
     <string name="server_list">サーバーリスト</string>
     <string name="add_server">サーバーを追加</string>
     <string name="remove_server">サーバーを削除</string>
-    <string name="change_language">English</string>
     <string name="donate">寄付</string>
+
+    <string name="edit_server">サーバー情報を編集</string>
+    <string name="update">更新</string>
+    <string name="update_server">サーバー情報が更新されました</string>
+    <string name="change_language">English</string>
+    <string name="select_file">選択したファイル</string>
+    <string name="not_select_file">鍵ファイルが選択されていません</string>
+    <string name="require_host_user">ホストとユーザー名は必須です</string>
     <string name="no_servers_to_remove">削除するサーバーがありません</string>
     <string name="server_removed">サーバーが削除されました</string>
+    <string name="a_server_select">サーバーを選択してください</string>
     <string name="cancel">キャンセル</string>
     <string name="donate_message">寄付ページを開きます。よろしいですか？</string>
     <string name="open_browser">ブラウザを開く</string>
