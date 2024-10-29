@@ -330,9 +330,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         etPassword.setText(config.password)
         selectedKeyUri = config.privateKeyUri
         tvSelectedKey.text = if (selectedKeyUri != null) {
-            "選択したファイル: ${DocumentFile.fromSingleUri(this, selectedKeyUri!!)?.name}"
+            getString(R.string.select_file)+": ${DocumentFile.fromSingleUri(this, selectedKeyUri!!)?.name}"
         } else {
-            "鍵ファイルが選択されていません"
+            getString(R.string.not_select_file)
         }
 
         btnSelectKey.setOnClickListener {
@@ -459,7 +459,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             data?.data?.let { uri ->
                 val fileName = DocumentFile.fromSingleUri(this, uri)?.name
                 val dialogView = (currentFocus?.parent as? View)?.findViewById<TextView>(R.id.tvSelectedKey)
-                dialogView?.text = "選択したファイル: $fileName"
+                dialogView?.text = getString(R.string.select_file)+": $fileName"
 
                 contentResolver.takePersistableUriPermission(
                     uri,
@@ -633,7 +633,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun executeCommand(command: String): String {
         val channel = currentSession?.openChannel("exec") as? ChannelExec
-            ?: throw IllegalStateException("セッションが切断されました")
+            ?: throw IllegalStateException(getString(R.string.session_disconnected))
 
         return try {
             synchronized(channels) {
@@ -710,7 +710,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun readKeyFile(uri: Uri): ByteArray {
         val inputStream = contentResolver.openInputStream(uri)
-            ?: throw IllegalStateException("ファイルを開けません")
+            ?: throw IllegalStateException(getString(R.string.cant_open_file))
         return inputStream.use { input ->
             val output = ByteArrayOutputStream()
             input.copyTo(output)
@@ -736,11 +736,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     }
                 }
                 else -> {
-                    throw IllegalArgumentException("未対応の鍵フォーマットです")
+                    throw IllegalArgumentException(getString(R.string.unsupported_key))
                 }
             }
         } catch (e: Exception) {
-            throw IllegalArgumentException("鍵の処理中にエラーが発生しました: ${e.message}", e)
+            throw IllegalArgumentException(getString(R.string.key_error)+": ${e.message}", e)
         }
     }
 

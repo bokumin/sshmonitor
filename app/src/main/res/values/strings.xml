@@ -7,6 +7,7 @@
     <string name="port">ポート番号(デフォルト:22)</string>
     <string name="username">ユーザー名</string>
     <string name="password">パスワード</string>
+    <string name="select_secret_key">秘密鍵を選択</string>
 
     <string name="add">追加</string>
 
@@ -17,6 +18,11 @@
     <string name="donate">寄付</string>
 
     <string name="no_key_selected">鍵が選択されていません</string>
+
+    <string name="session_disconnected">セッションが切断されました</string>
+    <string name="key_error">鍵の処理中にエラーが発生しました</string>
+    <string name="unsupported_key">未対応の鍵フォーマットです</string>
+    <string name="cant_open_file">ファイルを開けません</string>
 
     <string name="edit_server">サーバー情報を編集</string>
     <string name="update">更新</string>
@@ -32,10 +38,21 @@
     <string name="donate_message">寄付ページを開きます。よろしいですか？</string>
     <string name="open_browser">ブラウザを開く</string>
     <string name="connect">接続</string>
-    <string name="wifi_scan">"Wifiスキャン"</string>
-    <string name="wifi_start">"スキャン開始"</string>
-    <string name="pwifi_start">"スキャンを開始してください"</string>
+
+    <string name="wifi_scan">Wifiスキャン</string>
+    <string name="wifi_start">"　　　スキャン開始　　　"</string>
+    <string name="pwifi_start">スキャンを開始してください</string>
+    <string name="scanning">スキャン中...</string>
+    <string name="scanned">スキャン完了</string>
+    <string name="found_device">件のデバイスが見つかりました</string>
+    <string name="found_no_device">デバイスが見つかりませんでした</string>
+    <string name="no_wifi">WiFi未接続</string>
+    <string name="no_wifi_message">WiFiを有効にしてください</string>
+    <string name="open_wifi_setting">WiFi設定を開く</string>
+    <string name="error_occurred">エラーが発生しました</string>
+
     <string name="disconnect">切断</string>
+
     <string name="connection_success">接続に成功しました</string>
     <string name="connection_error">接続エラー: %1$s</string>
     <string name="disconnected">切断しました</string>

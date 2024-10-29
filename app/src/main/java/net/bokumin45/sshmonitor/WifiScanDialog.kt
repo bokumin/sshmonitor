@@ -154,12 +154,12 @@ class WifiScanDialog(
         val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
         if (!wifiManager.isWifiEnabled) {
             AlertDialog.Builder(context)
-                .setTitle("WiFi未接続")
-                .setMessage("WiFiを有効にしてください")
-                .setPositiveButton("WiFi設定を開く") { _, _ ->
+                .setTitle(context.getString(R.string.no_wifi))
+                .setMessage(context.getString(R.string.no_wifi_message))
+                .setPositiveButton(context.getString(R.string.open_wifi_setting)) { _, _ ->
                     context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
                 }
-                .setNegativeButton("キャンセル", null)
+                .setNegativeButton(context.getString(R.string.cancel), null)
                 .show()
             return
         }
@@ -167,7 +167,7 @@ class WifiScanDialog(
     }
     private fun startScan() {
         progressBar.visibility = View.VISIBLE
-        tvStatus.text = "スキャン中..."
+        tvStatus.text = context.getString(R.string.scanning)
         results.clear()
         adapter.notifyDataSetChanged()
 
@@ -190,14 +190,12 @@ class WifiScanDialog(
                     val testIp = "${subnet}.$i"
 
                     val job = async {
-                        // まずICMPでチェック
                         var isHostAlive = try {
                             InetAddress.getByName(testIp).isReachable(500)
                         } catch (e: Exception) {
                             false
                         }
 
-                        // ICMPで見つからない場合は主要なポートをチェック
                         if (!isHostAlive) {
                             isHostAlive = checkPorts(testIp)
                         }
@@ -213,13 +211,12 @@ class WifiScanDialog(
                             withContext(Dispatchers.Main) {
                                 results.add(ScanResult(testIp, hostname))
                                 adapter.notifyItemInserted(results.size - 1)
-                                tvStatus.text = "${results.size}件のデバイスが見つかりました"
+                                tvStatus.text = "${results.size}"+context.getString(R.string.found_device)
                             }
                         }
                     }
                     scanJobs.add(job)
 
-                    // 10個ずつ並列実行（負荷軽減）
                     if (scanJobs.size >= 10 || i == 254) {
                         scanJobs.awaitAll()
                         scanJobs.clear()
@@ -229,15 +226,15 @@ class WifiScanDialog(
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
                     if (results.isEmpty()) {
-                        tvStatus.text = "デバイスが見つかりませんでした"
+                        tvStatus.text = context.getString(R.string.found_no_device)
                     } else {
-                        tvStatus.text = "スキャン完了: ${results.size}件のデバイスが見つかりました"
+                        tvStatus.text = context.getString(R.string.scanned)+": ${results.size}"+context.getString(R.string.found_device)
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
-                    tvStatus.text = "エラーが発生しました: ${e.message}"
+                    tvStatus.text = context.getString(R.string.error_occurred)+": ${e.message}"
                 }
             }
         }

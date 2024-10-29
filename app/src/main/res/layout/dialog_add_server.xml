@@ -42,7 +42,7 @@
             android:id="@+id/btnSelectKey"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="秘密鍵を選択 (オプション)" />
+            android:text="@string/select_secret_key" />
 
         <TextView
             android:id="@+id/tvSelectedKey"

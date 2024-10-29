@@ -8,6 +8,7 @@
     <string name="port">Port: 22 (default)</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
+    <string name="select_secret_key">Select key(option)</string>
 
     <string name="add">add</string>
 
@@ -23,6 +24,11 @@
 
     <string name="no_key_selected">No key selected</string>
 
+    <string name="session_disconnected">session disconnected</string>
+    <string name="key_error">Key error</string>
+    <string name="unsupported_key">unsupported key format</string>
+    <string name="cant_open_file">cant open file</string>
+
     <string name="select_file">Selected Key</string>
     <string name="not_select_file">not Selected Key</string>
     <string name="require_host_user">Please enter hostname and username</string>
@@ -33,9 +39,18 @@
     <string name="donate_message">Opening donation page. Would you like to proceed?</string>
     <string name="open_browser">Open Browser</string>
     <string name="connect">Connect</string>
-    <string name="wifi_scan">"Scan Wifi"</string>
-    <string name="wifi_start">"Start Scan"</string>
-    <string name="pwifi_start">"Please Start Scan"</string>
+    <string name="wifi_scan">Scan Wifi</string>
+    <string name="wifi_start">"　　　Start Scan　　　"</string>
+    <string name="pwifi_start">Please Start Scan</string>
+    <string name="scanning">Scanning...</string>
+    <string name="scanned">Scan Completed</string>
+    <string name="found_device">" devices found　　　　　　　"</string>>
+    <string name="found_no_device">No device found</string>
+    <string name="no_wifi">Not connected to WiFi</string>
+    <string name="no_wifi_message">Please enable WiFi</string>
+    <string name="open_wifi_setting">Open WiFi Settings</string>
+    <string name="error_occurred">Error Occurred</string>
+
     <string name="disconnect">Disconnect</string>
     <string name="connection_success">Connection successful</string>
     <string name="connection_error">Connection error: %1$s</string>
