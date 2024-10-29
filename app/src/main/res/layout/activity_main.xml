@@ -5,14 +5,12 @@
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_dark"
-    >
+    android:background="@color/background_dark">
 
         <!-- Main content -->
-        <LinearLayout
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical">
+            android:layout_height="match_parent">
 
                 <androidx.appcompat.widget.Toolbar
                     android:id="@+id/toolbar"
@@ -22,9 +20,20 @@
                     android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
                     app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
+                <Button
+                    android:id="@+id/btnConnect"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentBottom="true"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginBottom="16dp"
+                    android:text="@string/connect" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
+                    android:layout_above="@id/btnConnect"
+                    android:layout_below="@id/toolbar"
                     android:orientation="vertical"
                     android:padding="16dp">
 
@@ -63,6 +72,7 @@
                             android:layout_height="0dp"
                             android:layout_marginTop="16dp"
                             android:layout_weight="1" />
+
                         <com.github.mikephil.charting.charts.LineChart
                             android:id="@+id/chartGPU"
                             android:layout_width="match_parent"
@@ -70,14 +80,8 @@
                             android:layout_marginTop="16dp"
                             android:layout_weight="1" />
 
-                        <Button
-                            android:id="@+id/btnConnect"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="@string/connect" />
                 </LinearLayout>
-        </LinearLayout>
+        </RelativeLayout>
 
         <!-- Sidebar content -->
         <com.google.android.material.navigation.NavigationView
