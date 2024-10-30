@@ -34,7 +34,7 @@ SSH Server Monitor is a mobile monitoring tool for system administrators. Monito
 
 ### Device Requirements
 - Android 6.0 or higher
-- 50MB+ free space
+- 10MB+ free space
 
 ### Server Requirements
 - Running SSH server
