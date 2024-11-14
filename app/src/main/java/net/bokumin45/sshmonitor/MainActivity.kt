@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         initializeGraphViews()
         loadGraphSettings()
         updateGraphVisibility()
- //       animateToolbarBackground()
+        //       animateToolbarBackground()
 
     }
     private fun animateToolbarBackground() {
@@ -226,13 +226,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val orderedGraphs = graphSettings.sortedBy { it.order }
         val parentLayout = chartCPU.parent as? LinearLayout ?: return
 
-        // 既存のグラフを一時的に親レイアウトから削除
         parentLayout.removeView(chartCPU)
         parentLayout.removeView(chartMemory)
         parentLayout.removeView(chartDisk)
         parentLayout.removeView(chartGPU)
 
-        // 設定に基づいて表示/非表示を設定し、順序通りに再追加
         orderedGraphs.forEach { setting ->
             val chart = when (setting.name) {
                 "CPU" -> {
@@ -254,7 +252,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 else -> null
             }
 
-            // チャートをレイアウトに追加（非表示のものも含む）
             chart?.let { parentLayout.addView(it) }
         }
     }
@@ -677,7 +674,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 channels.clear()
             }
 
-            // セッションを切断
             currentSession?.let { session ->
                 if (session.isConnected) {
                     session.disconnect()
