@@ -122,7 +122,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var graphSettings = listOf(
         GraphSetting("CPU", true, 0),
         GraphSetting("Memory", true, 1),
-        GraphSetting("Disk(Block)", true, 2),
+        GraphSetting("Disk", true, 2),
         GraphSetting("GPU", true, 3)
     )
     private data class GraphView(
@@ -178,7 +178,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         graphViews = listOf(
             GraphView("CPU", chartCPU, 0),
             GraphView("Memory", chartMemory, 1),
-            GraphView("Disk(Block)", chartDisk, 2),
+            GraphView("Disk", chartDisk, 2),
             GraphView("GPU", chartGPU, 3)
         )
     }
