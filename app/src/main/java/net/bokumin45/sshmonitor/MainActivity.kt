@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -29,6 +30,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
+import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
 import com.google.android.material.navigation.NavigationView
 import com.google.gson.Gson
 import com.jcraft.jsch.ChannelExec
@@ -120,7 +122,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var graphSettings = listOf(
         GraphSetting("CPU", true, 0),
         GraphSetting("Memory", true, 1),
-        GraphSetting("Disk", true, 2),
+        GraphSetting("Disk(Block)", true, 2),
         GraphSetting("GPU", true, 3)
     )
     private data class GraphView(
@@ -176,7 +178,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         graphViews = listOf(
             GraphView("CPU", chartCPU, 0),
             GraphView("Memory", chartMemory, 1),
-            GraphView("Disk", chartDisk, 2),
+            GraphView("Disk(Block)", chartDisk, 2),
             GraphView("GPU", chartGPU, 3)
         )
     }
@@ -310,7 +312,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             override fun onNothingSelected(parent: AdapterView<*>?) {
             }
         }
-    }    private fun setupChart(chart: LineChart, label: String, color1: Int) {
+    }
+    private fun setupChart(chart: LineChart, label: String, color1: Int, color2: Int? = null) {
         chart.apply {
             description.apply {
                 isEnabled = true
@@ -349,46 +352,52 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 setDrawGridLines(true)
                 textColor = Color.WHITE
                 gridColor = Color.GRAY
-                if (label.contains("温度")) {
+
+                if (label.contains("DISK")) {
+                    setDrawZeroLine(true)
                     axisMinimum = 0f
-                    axisMaximum = 100f
-                    valueFormatter = object : ValueFormatter() {
-                        override fun getFormattedValue(value: Float): String {
-                            return "${value.toInt()}℃"
-                        }
-                    }
+                    spaceTop = 100f
+
+                    isAutoScaleMinMaxEnabled = true
                 } else {
                     axisMinimum = 0f
                     axisMaximum = 100f
-                    valueFormatter = object : ValueFormatter() {
-                        override fun getFormattedValue(value: Float): String {
-                            return "${value.toInt()}%"
-                        }
-                    }
                 }
             }
 
             axisRight.isEnabled = false
             setBackgroundColor(Color.TRANSPARENT)
-        }
+            val entries = ArrayList<Entry>()
 
-        val dataSet = LineDataSet(null, label).apply {
-            setDrawValues(false)
-            setDrawCircles(false)
-            lineWidth = 2f
-            color = color1
-        }
+            val dataSet1 = LineDataSet(entries, if (label.contains("DISK")) "Read" else "Value").apply {
+                setDrawValues(false)
+                setDrawCircles(false)
+                lineWidth = 2f
+                color = color1
+            }
 
-        chart.data = LineData(dataSet)
+            val dataSets = ArrayList<ILineDataSet>()
+            dataSets.add(dataSet1)
+
+            if (color2 != null) {
+                val dataSet2 = LineDataSet(ArrayList(), if (label.contains("DISK")) "Write" else "Value").apply {
+                    setDrawValues(false)
+                    setDrawCircles(false)
+                    lineWidth = 2f
+                    color = color2
+                }
+                dataSets.add(dataSet2)
+            }
+
+            data = LineData(dataSets)
+        }
     }
-
     private fun setupCharts() {
-        setupChart(chartCPU, "CPU", Color.RED)
-        setupChart(chartMemory, "MEM", Color.GREEN)
-        setupChart(chartDisk, "DISK", Color.BLUE)
-        setupChart(chartGPU, "GPU", Color.MAGENTA)
+        setupChart(chartCPU, "CPU Usage (%)", Color.RED)
+        setupChart(chartMemory, "Memory Usage (%)", Color.GREEN)
+        setupChart(chartDisk, "Disk I/O (blocks/s)", Color.BLUE, Color.CYAN)
+        setupChart(chartGPU, "GPU Usage (%)", Color.MAGENTA)
     }
-
     private fun updateServerSpinner() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, serverConfigs)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -781,10 +790,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         ).toFloatOrNull() ?: 0f
     }
 
-    private fun getDiskUsage(): Float {
-        return executeCommand(
-            "df / | tail -1 | awk '{print \$5}' | sed 's/%//'"
-        ).toFloatOrNull() ?: 0f
+    private fun getDiskUsage(): Pair<Float, Float> {
+        return try {
+            val vmstatOutput = executeCommand(
+                "vmstat 1 2 | tail -n 1 | awk '{print \$9, \$10}'"
+            )
+            val parts = vmstatOutput.trim().split("\\s+".toRegex())
+
+            val bi = parts[0].toFloatOrNull() ?: 0f
+            val bo = parts[1].toFloatOrNull() ?: 0f
+
+            Pair(bi, bo)
+        } catch (e: Exception) {
+            Pair(0f, 0f)
+        }
     }
     private fun getUptime(): String {
         return executeCommand("uptime -p")
@@ -844,12 +863,41 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    private suspend fun updateCharts(cpuUsage: Float, memoryUsage: Float, diskUsage: Float,gpuUsage: Float) {
+    private suspend fun updateCharts(cpuUsage: Float, memoryUsage: Float, diskUsage: Pair<Float, Float>, gpuUsage: Float) {
         withContext(Dispatchers.Main) {
             updateChart(chartCPU, cpuUsage)
             updateChart(chartMemory, memoryUsage)
-            updateChart(chartDisk, diskUsage)
+            updateDiskChart(chartDisk, diskUsage.first, diskUsage.second)
+            updateChart(chartGPU, gpuUsage)
         }
+    }
+    private fun updateDiskChart(chart: LineChart, biValue: Float, boValue: Float) {
+        val data = chart.data ?: return
+
+        while (data.dataSets.size < 2) {
+            val newDataSet = LineDataSet(ArrayList<Entry>(), "Write").apply {
+                setDrawValues(false)
+                setDrawCircles(false)
+                lineWidth = 2f
+                color = Color.CYAN
+            }
+            data.addDataSet(newDataSet)
+        }
+
+        val biDataSet = data.getDataSetByIndex(0) as? LineDataSet ?: return
+        val boDataSet = data.getDataSetByIndex(1) as? LineDataSet ?: return
+
+        data.addEntry(Entry(biDataSet.entryCount.toFloat(), biValue), 0)
+        data.addEntry(Entry(boDataSet.entryCount.toFloat(), boValue), 1)
+
+        data.notifyDataChanged()
+        chart.notifyDataSetChanged()
+        chart.setVisibleXRangeMaximum(60f)
+        chart.moveViewToX(data.entryCount.toFloat())
+
+        chart.axisLeft.resetAxisMinimum()
+        chart.axisLeft.resetAxisMaximum()
+        chart.axisLeft.setDrawZeroLine(true)
     }
 
     private suspend fun updateUptime(uptime: String) {
@@ -859,11 +907,15 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun updateChart(chart: LineChart, value: Float) {
-        val data = chart.data
-        val dataSet = data.getDataSetByIndex(0) as LineDataSet
+        val data = chart.data ?: return
+        if (data.dataSets.isEmpty()) return
+
+        val dataSet = data.getDataSetByIndex(0) as? LineDataSet ?: return
         data.addEntry(Entry(dataSet.entryCount.toFloat(), value), 0)
+
         data.notifyDataChanged()
         chart.notifyDataSetChanged()
+
         chart.setVisibleXRangeMaximum(60f)
         chart.moveViewToX(data.entryCount.toFloat())
     }
