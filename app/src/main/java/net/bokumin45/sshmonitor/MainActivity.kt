@@ -5,10 +5,12 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.LocaleList
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
@@ -560,9 +562,17 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val currentLocale = resources.configuration.locales[0]
         val newLocale = if (currentLocale.language == "en") Locale("ja") else Locale("en")
 
-        val config = resources.configuration
-        config.setLocale(newLocale)
-        resources.updateConfiguration(config, resources.displayMetrics)
+        val localeList = LocaleList(newLocale)
+        LocaleList.setDefault(localeList)
+
+        val context = applicationContext
+        val resources = context.resources
+        val configuration = Configuration(resources.configuration)
+        configuration.setLocales(localeList)
+
+        val updatedContext = context.createConfigurationContext(configuration)
+
+        val appResources = updatedContext.resources
 
         recreate()
     }
@@ -806,7 +816,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
     private fun getUptime(): String {
-        return executeCommand("uptime -p")
+        val uptimeOutput = executeCommand("uptime -p")
+        val diskUsageOutput = executeCommand("df -h / | awk 'NR==2 {print $5}'")
+        return "$uptimeOutput / Disk: $diskUsageOutput"
     }
 
 
