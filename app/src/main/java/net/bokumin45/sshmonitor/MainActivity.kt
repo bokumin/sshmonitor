@@ -844,7 +844,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     val uptime = getUptime()
                     updateCharts(cpuUsage, memoryUsage, diskUsage,gpuUsage)
                     updateUptime(uptime)
-                    delay(500)
+                    delay(200)
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
