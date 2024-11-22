@@ -5,20 +5,61 @@
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_dark">
+    android:background="#2F343F">
 
         <!-- Main content -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
-
-                <androidx.appcompat.widget.Toolbar
-                    android:id="@+id/toolbar"
+                <LinearLayout
+                    android:id="@+id/titleBar"
                     android:layout_width="match_parent"
-                    android:layout_height="?attr/actionBarSize"
-                    android:background="@color/purple_200"
-                    android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-                    app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+                    android:layout_height="28dp"
+                    android:background="#B0B0B0"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                        <net.bokumin45.sshmonitor.MarqueeTextView
+                            android:id="@+id/tvTitle"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_marginEnd="12dp"
+                            android:text="SSH Monitor"
+                            android:textColor="#000000"
+                            android:textSize="14sp"
+                            android:fontFamily="monospace"
+                            android:textStyle="bold" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/toolbarContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/titleBar"
+                    android:orientation="horizontal"
+                    android:background="#2F343F">
+
+                        <androidx.appcompat.widget.Toolbar
+                            android:id="@+id/toolbar"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="?attr/actionBarSize"
+                            android:background="#2F343F"
+                            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+                            app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+                            app:title=""/>
+
+                        <Spinner
+                            android:id="@+id/spinnerServers"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:layout_marginEnd="16dp"
+                            android:minWidth="120dp" />
+
+                </LinearLayout>
 
                 <Button
                     android:id="@+id/btnConnect"
@@ -33,15 +74,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_above="@id/btnConnect"
-                    android:layout_below="@id/toolbar"
+                    android:layout_below="@id/toolbarContainer"
                     android:orientation="vertical"
-                    android:padding="16dp">
-
-                        <Spinner
-                            android:id="@+id/spinnerServers"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp" />
+                    android:padding="12dp"
+                    android:background="#2F343F">
 
                         <TextView
                             android:id="@+id/tvUptime"

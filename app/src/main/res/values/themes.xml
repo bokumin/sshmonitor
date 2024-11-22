@@ -10,7 +10,7 @@
         <item name="colorSecondaryVariant">@color/teal_700</item>
         <item name="colorOnSecondary">@color/black</item>
         <!-- Status bar color. -->
-        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
+        <item name="android:statusBarColor" tools:targetApi="l">@color/black</item>
 
         <!-- Dark theme specific colors -->
         <item name="android:windowBackground">@color/background_dark</item>
@@ -20,5 +20,10 @@
         <item name="android:textColorPrimary">@color/text_primary_dark</item>
         <item name="android:textColorSecondary">@color/text_secondary_dark</item>
         <item name="android:colorBackground">@color/background_dark</item>
+
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 </resources>

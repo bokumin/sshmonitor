@@ -16,6 +16,8 @@ import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.*
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -61,17 +63,45 @@ data class ServerConfig(
 
 class ServerConfigManager(private val context: Context) {
     private val sharedPreferences = context.getSharedPreferences("ServerConfigs", Context.MODE_PRIVATE)
+    private val uriPermissionManager = UriPermissionManager(context)
 
     fun saveServerConfig(config: ServerConfig) {
         val configs = getServerConfigs().toMutableList()
+        config.privateKeyUri?.let { uri ->
+            uriPermissionManager.takePersistablePermission(uri)
+        }
         configs.add(config)
-        sharedPreferences.edit().putString("configs", configs.joinToString("|") { "${it.host},${it.port},${it.username},${it.privateKeyUri},${it.password}" }).apply()
+        saveConfigs(configs)
     }
+
 
     fun updateServerConfig(index: Int, config: ServerConfig) {
         val configs = getServerConfigs().toMutableList()
+        // 古い鍵ファイルのURIのパーミッションを解放
+        configs[index].privateKeyUri?.let { oldUri ->
+            uriPermissionManager.releasePersistablePermission(oldUri)
+        }
+        // 新しい鍵ファイルのURIに対して永続的なパーミッションを取得
+        config.privateKeyUri?.let { newUri ->
+            uriPermissionManager.takePersistablePermission(newUri)
+        }
         configs[index] = config
-        sharedPreferences.edit().putString("configs", configs.joinToString("|") { "${it.host},${it.port},${it.username},${it.privateKeyUri},${it.password}" }).apply()
+        saveConfigs(configs)
+    }
+
+    fun removeServerConfig(config: ServerConfig) {
+        val configs = getServerConfigs().toMutableList()
+        config.privateKeyUri?.let { uri ->
+            uriPermissionManager.releasePersistablePermission(uri)
+        }
+        configs.remove(config)
+        saveConfigs(configs)
+    }
+
+    private fun saveConfigs(configs: List<ServerConfig>) {
+        sharedPreferences.edit().putString("configs", configs.joinToString("|") {
+            "${it.host},${it.port},${it.username},${it.privateKeyUri},${it.password}"
+        }).apply()
     }
 
     fun getServerConfigs(): List<ServerConfig> {
@@ -87,11 +117,42 @@ class ServerConfigManager(private val context: Context) {
             )
         }
     }
+}
 
-    fun removeServerConfig(config: ServerConfig) {
-        val configs = getServerConfigs().toMutableList()
-        configs.remove(config)
-        sharedPreferences.edit().putString("configs", configs.joinToString("|") { "${it.host},${it.port},${it.username},${it.privateKeyUri},${it.password}" }).apply()
+class UriPermissionManager(private val context: Context) {
+    fun takePersistablePermission(uri: Uri) {
+        try {
+            val hasPermission = context.contentResolver.persistedUriPermissions.any {
+                it.uri == uri && it.isReadPermission
+            }
+
+            if (!hasPermission) {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        } catch (e: SecurityException) {
+            Log.e("UriPermissionManager", "Failed to take permission for URI: $uri", e)
+        }
+    }
+
+    fun releasePersistablePermission(uri: Uri) {
+        try {
+            // 権限を持っているかチェック
+            val hasPermission = context.contentResolver.persistedUriPermissions.any {
+                it.uri == uri && it.isReadPermission
+            }
+
+            if (hasPermission) {
+                context.contentResolver.releasePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        } catch (e: SecurityException) {
+            Log.e("UriPermissionManager", "Failed to release permission for URI: $uri", e)
+        }
     }
 }
 
@@ -138,9 +199,23 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val savedLanguage = getSharedPreferences("Settings", MODE_PRIVATE)
+            .getString("language", null)
+
+        if (savedLanguage != null) {
+            val locale = Locale(savedLanguage)
+            Locale.setDefault(locale)
+            val config = resources.configuration
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                config.setLocales(LocaleList(locale))
+            } else {
+                @Suppress("DEPRECATION")
+                config.locale = locale
+            }
+            resources.updateConfiguration(config, resources.displayMetrics)
+        }
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-
         Security.addProvider(BouncyCastleProvider())
 
         serverConfigManager = ServerConfigManager(this)
@@ -559,20 +634,30 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     @RequiresApi(Build.VERSION_CODES.N)
     private fun toggleLanguage() {
-        val currentLocale = resources.configuration.locales[0]
+        // 現在の言語を取得
+        val currentLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            resources.configuration.locales[0]
+        } else {
+            @Suppress("DEPRECATION")
+            resources.configuration.locale
+        }
+
         val newLocale = if (currentLocale.language == "en") Locale("ja") else Locale("en")
 
-        val localeList = LocaleList(newLocale)
-        LocaleList.setDefault(localeList)
+        val config = resources.configuration
+        Locale.setDefault(newLocale)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            config.setLocales(LocaleList(newLocale))
+        } else {
+            @Suppress("DEPRECATION")
+            config.locale = newLocale
+        }
 
-        val context = applicationContext
-        val resources = context.resources
-        val configuration = Configuration(resources.configuration)
-        configuration.setLocales(localeList)
+        resources.updateConfiguration(config, resources.displayMetrics)
 
-        val updatedContext = context.createConfigurationContext(configuration)
-
-        val appResources = updatedContext.resources
+        val editor = getSharedPreferences("Settings", MODE_PRIVATE).edit()
+        editor.putString("language", newLocale.language)
+        editor.apply()
 
         recreate()
     }
@@ -599,22 +684,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 currentDialogView?.findViewById<TextView>(R.id.tvSelectedKey)?.let { textView ->
                     textView.text = getString(R.string.select_file) + ": $fileName"
                 }
-
                 contentResolver.takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
 
-                selectedKeyUri?.let { oldUri ->
-                    try {
-                        contentResolver.releasePersistableUriPermission(
-                            oldUri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        )
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
                 selectedKeyUri = uri
             }
         }
