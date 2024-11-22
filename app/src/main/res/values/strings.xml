@@ -59,6 +59,6 @@
     <string name="connection_error">接続エラー: %1$s</string>
     <string name="disconnected">切断しました</string>
     <string name="monitoring_error">モニタリングエラー: %1$s</string>
-    <string name="uptime_placeholder">稼働時間: --</string>
-    <string name="uptime_format">稼働時間: %1$s</string>
+    <string name="uptime_placeholder">Uptime: --</string>
+    <string name="uptime_format">Uptime: %1$s</string>
 </resources>

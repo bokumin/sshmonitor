@@ -1,6 +1,7 @@
 package net.bokumin45.sshmonitor
 
 import android.animation.ArgbEvaluator
+import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
@@ -232,8 +233,43 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         initializeGraphViews()
         loadGraphSettings()
         updateGraphVisibility()
+        setupUptimeCard()
         //       animateToolbarBackground()
 
+    }
+    private fun setupUptimeCard() {
+        val uptimeHeader = findViewById<LinearLayout>(R.id.uptimeHeader)
+        val uptimeContent = findViewById<LinearLayout>(R.id.uptimeContent)
+        val expandIcon = findViewById<ImageView>(R.id.expandIcon)
+
+        var isExpanded = false
+
+        uptimeHeader.setOnClickListener {
+            val rotateAnimation = if (isExpanded) {
+                ObjectAnimator.ofFloat(expandIcon, "rotation", 0f, 180f)
+            } else {
+                ObjectAnimator.ofFloat(expandIcon, "rotation", 180f, 0f)
+            }
+            rotateAnimation.duration = 200
+            rotateAnimation.start()
+
+            if (isExpanded) {
+                uptimeContent.animate()
+                    .alpha(0f)
+                    .setDuration(200)
+                    .withEndAction {
+                        uptimeContent.visibility = View.GONE
+                    }
+            } else {
+                uptimeContent.visibility = View.VISIBLE
+                uptimeContent.alpha = 0f
+                uptimeContent.animate()
+                    .alpha(1f)
+                    .setDuration(200)
+            }
+
+            isExpanded = !isExpanded
+        }
     }
     private fun animateToolbarBackground() {
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
@@ -550,6 +586,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     serverConfigs[index] = updatedConfig
                     serverConfigManager.updateServerConfig(index, updatedConfig)
                     updateServerSpinner()
+                    spinnerServers.setSelection(index)
                     Toast.makeText(this, getString(R.string.update_server), Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
@@ -890,11 +927,49 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
     private fun getUptime(): String {
-        val uptimeOutput = executeCommand("uptime -p")
-        val diskUsageOutput = executeCommand("df -h / | awk 'NR==2 {print $5}'")
-        return "$uptimeOutput / Disk: $diskUsageOutput"
-    }
+        val uptimeOutput = executeCommand("""
+        uptime | 
+        sed 's/.*up\s*//' | 
+        sed 's/,\s*[0-9]* user.*$//' | 
+        awk '{printf "%s\nLoad Average: ", $0}' && 
+        uptime | 
+        grep -o 'load average:.*' | 
+        sed 's/load average: //' | 
+        tr '\n' ' ' && 
+        uptime | 
+        grep -o '[0-9]* user' | 
+        awk '{printf ", Users: %s", $1}'
+    """.trimIndent())
 
+        val diskUsageOutput = executeCommand("""
+        df | 
+        awk '!/^(tmpfs|devtmpfs|udev|\/dev\/loop)/ && !seen[$1]++ {
+            total+=$2;
+            used+=$3
+        } END {
+            tb=1024*1024*1024;
+            if(total<1024) {
+                u="K"
+            } else if(total<1024*1024) {
+                total/=1024;
+                used/=1024;
+                u="M"
+            } else if(total<1024*1024*1024) {
+                total/=1024/1024;
+                used/=1024/1024;
+                u="G"
+            } else {
+                total/=tb;
+                used/=tb;
+                u="T"
+            }; 
+            printf "%.1f%s/%.1f%s (%.1f%%)", 
+            total, u, used, u, (used/total)*100
+        }'
+    """.trimIndent())
+
+        return "$uptimeOutput\nDisk: $diskUsageOutput"
+    }
 
     private fun executeCommand(command: String): String {
         val channel = currentSession?.openChannel("exec") as? ChannelExec

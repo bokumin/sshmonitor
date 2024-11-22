@@ -61,6 +61,69 @@
 
                 </LinearLayout>
 
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/uptimeCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/toolbarContainer"
+                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginTop="8dp"
+                    app:cardBackgroundColor="#3C4049"
+                    app:strokeWidth="0dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                                <LinearLayout
+                                    android:id="@+id/uptimeHeader"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:padding="8dp"
+                                    android:gravity="center_vertical">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="Information"
+                                            android:textSize="16sp"
+                                            android:textStyle="bold" />
+
+                                        <ImageView
+                                            android:id="@+id/expandIcon"
+                                            android:layout_width="24dp"
+                                            android:layout_height="24dp"
+                                            android:src="@drawable/ic_expand_more"
+                                            app:tint="@android:color/white"
+                                            android:rotation="0" />
+
+                                </LinearLayout>
+
+                                <LinearLayout
+                                    android:id="@+id/uptimeContent"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical"
+                                    android:visibility="gone"
+                                    android:padding="8dp">
+
+                                        <TextView
+                                            android:id="@+id/tvUptime"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:text="@string/uptime_placeholder"
+                                            android:textAlignment="textStart"
+                                            android:textSize="16sp" />
+
+                                </LinearLayout>
+
+                        </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
                 <Button
                     android:id="@+id/btnConnect"
                     android:layout_width="match_parent"
@@ -74,19 +137,10 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_above="@id/btnConnect"
-                    android:layout_below="@id/toolbarContainer"
+                    android:layout_below="@id/uptimeCard"
                     android:orientation="vertical"
                     android:padding="12dp"
                     android:background="#2F343F">
-
-                        <TextView
-                            android:id="@+id/tvUptime"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="@string/uptime_placeholder"
-                            android:textAlignment="textStart"
-                            android:textSize="16sp" />
 
                         <com.github.mikephil.charting.charts.LineChart
                             android:id="@+id/chartCPU"
