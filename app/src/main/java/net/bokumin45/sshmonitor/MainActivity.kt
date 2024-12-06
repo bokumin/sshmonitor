@@ -671,7 +671,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     @RequiresApi(Build.VERSION_CODES.N)
     private fun toggleLanguage() {
-        // 現在の言語を取得
         val currentLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             resources.configuration.locales[0]
         } else {
@@ -843,20 +842,21 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val nvidiaSmiOutput = executeCommand("which nvidia-smi").trim()
         if (nvidiaSmiOutput.isNotEmpty()) {
             return executeCommand(
-                "nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits"
-            ).toFloatOrNull() ?: 0f
-        }
-
-        // AMD GPUの場合
-        val rocmSmiOutput = executeCommand("which rocm-smi").trim()
-        if (rocmSmiOutput.isNotEmpty()) {
-            return executeCommand(
-                "rocm-smi --showuse"
-            ).let { output ->
-                // ROCm-SMIの出力から使用率を抽出
-                val regex = "GPU use \\(%\\)\\s*:\\s*(\\d+)".toRegex()
-                regex.find(output)?.groupValues?.get(1)?.toFloatOrNull() ?: 0f
-            }
+                "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits"
+            )
+                .split(",")
+                .map { it.trim() }
+                .let { values ->
+                    when (values.size) {
+                        3 -> {
+                            val gpuUtil = values[0].toFloatOrNull()
+                            val memoryUsed = values[1].toFloatOrNull() ?: 0f
+                            val memoryTotal = values[2].toFloatOrNull() ?: 1f
+                            gpuUtil ?: (memoryUsed / memoryTotal * 100f)
+                        }
+                        else -> 0f
+                    }
+                }
         }
 
         // Intel GPUの場合
@@ -942,31 +942,31 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     """.trimIndent())
 
         val diskUsageOutput = executeCommand("""
-        df | 
-        awk '!/^(tmpfs|devtmpfs|udev|\/dev\/loop)/ && !seen[$1]++ {
-            total+=$2;
-            used+=$3
-        } END {
-            tb=1024*1024*1024;
-            if(total<1024) {
-                u="K"
-            } else if(total<1024*1024) {
-                total/=1024;
-                used/=1024;
-                u="M"
-            } else if(total<1024*1024*1024) {
-                total/=1024/1024;
-                used/=1024/1024;
-                u="G"
-            } else {
-                total/=tb;
-                used/=tb;
-                u="T"
-            }; 
-            printf "%.1f%s/%.1f%s (%.1f%%)", 
-            total, u, used, u, (used/total)*100
-        }'
-    """.trimIndent())
+    df | 
+    awk '!/^(tmpfs|devtmpfs|udev|\/dev\/loop)/ && !seen[$1]++ {
+        total+=$2;
+        used+=$3
+    } END {
+        units[0] = "K"; units[1] = "M"; units[2] = "G"; 
+        units[3] = "T"; units[4] = "P"; units[5] = "E"; 
+        units[6] = "Z"; units[7] = "Y";
+        
+        unitIndex = 0;
+        convertedTotal = total;
+        convertedUsed = used;
+        
+        while (convertedTotal >= 1024 && unitIndex < 7) {
+            convertedTotal /= 1024;
+            convertedUsed /= 1024;
+            unitIndex++;
+        }
+        
+        printf "%.2f%s/%.2f%s (%.1f%%)", 
+        convertedUsed, units[unitIndex], 
+        convertedTotal, units[unitIndex], 
+        (convertedUsed/convertedTotal)*100
+    }'
+""".trimIndent())
 
         return "$uptimeOutput\nDisk: $diskUsageOutput"
     }
