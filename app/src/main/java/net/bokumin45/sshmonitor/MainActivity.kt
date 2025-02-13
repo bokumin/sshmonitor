@@ -6,7 +6,6 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Build
@@ -17,8 +16,6 @@ import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
 import android.widget.*
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -78,7 +75,6 @@ class ServerConfigManager(private val context: Context) {
 
     fun updateServerConfig(index: Int, config: ServerConfig) {
         val configs = getServerConfigs().toMutableList()
-        // 古い鍵ファイルのURIのパーミッションを解放
         configs[index].privateKeyUri?.let { oldUri ->
             uriPermissionManager.releasePersistablePermission(oldUri)
         }
@@ -140,7 +136,6 @@ class UriPermissionManager(private val context: Context) {
 
     fun releasePersistablePermission(uri: Uri) {
         try {
-            // 権限を持っているかチェック
             val hasPermission = context.contentResolver.persistedUriPermissions.any {
                 it.uri == uri && it.isReadPermission
             }
@@ -182,6 +177,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var backgroundJob: Job? = null
     private var isInBackground = false
     private var currentDialogView: View? = null
+
+    private var loadingDialog: AlertDialog? = null
 
     private var graphSettings = listOf(
         GraphSetting("CPU", true, 0),
@@ -234,7 +231,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadGraphSettings()
         updateGraphVisibility()
         setupUptimeCard()
-        //       animateToolbarBackground()
 
     }
     private fun setupUptimeCard() {
@@ -512,13 +508,37 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupChart(chartGPU, "GPU Usage (%)", Color.MAGENTA)
     }
     private fun updateServerSpinner() {
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, serverConfigs)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinnerServers.adapter = adapter
+        if (serverConfigs.isEmpty()) {
+            spinnerServers.visibility = View.GONE
+
+            findViewById<Button>(R.id.btnAddServer).apply {
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    showAddServerDialog()
+                }
+            }
+        } else {
+            spinnerServers.visibility = View.VISIBLE
+            findViewById<Button>(R.id.btnAddServer).visibility = View.GONE
+
+            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, serverConfigs)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            spinnerServers.adapter = adapter
+
+            spinnerServers.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    if (currentSession != null) {
+                        disconnectSSH()
+                    }
+                    resetCharts()
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+            }
+        }
 
         updateNavigationMenu()
     }
-
     private fun updateNavigationMenu() {
         val menu = navView.menu
         menu.clear()
@@ -730,8 +750,32 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+    private fun showLoadingDialog(message: String) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_loading, null)
+        dialogView.findViewById<TextView>(R.id.loadingText).text = message
 
+        loadingDialog = AlertDialog.Builder(this)
+            .setView(dialogView)
+            .setCancelable(false)
+            .create()
+            .apply {
+                window?.setBackgroundDrawableResource(android.R.color.transparent)
+                show()
+            }
+    }
+
+    private fun hideLoadingDialog() {
+        loadingDialog?.dismiss()
+        loadingDialog = null
+    }
     private fun connectSSH(config: ServerConfig) {
+        if (currentSession != null) {
+            disconnectSSH()
+            return
+        }
+
+        showLoadingDialog(getString(R.string.connecting))
+
         resetCharts()
         cancelBackgroundDisconnect()
 
@@ -750,6 +794,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 }
 
                 withContext(Dispatchers.Main) {
+                    hideLoadingDialog() // 接続成功時にダイアログを非表示
                     btnConnect.text = getString(R.string.disconnect)
                     Toast.makeText(this@MainActivity, getString(R.string.connection_success), Toast.LENGTH_SHORT).show()
                 }
@@ -758,7 +803,53 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
+                    hideLoadingDialog() // エラー時にダイアログを非表示
+                    btnConnect.text = getString(R.string.connect)
                     Toast.makeText(this@MainActivity, getString(R.string.connection_error, e.message), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun disconnectSSH() {
+        showLoadingDialog(getString(R.string.disconnecting))
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                monitoringJob?.cancel()
+
+                synchronized(channels) {
+                    channels.forEach { channel ->
+                        try {
+                            if (channel.isConnected) {
+                                channel.disconnect()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    channels.clear()
+                }
+
+                currentSession?.let { session ->
+                    if (session.isConnected) {
+                        session.disconnect()
+                    }
+                }
+                currentSession = null
+
+                withContext(Dispatchers.Main) {
+                    hideLoadingDialog()
+                    btnConnect.text = getString(R.string.connect)
+                    Toast.makeText(this@MainActivity, getString(R.string.disconnected), Toast.LENGTH_SHORT).show()
+                    resetCharts()
+                    tvUptime.text = getString(R.string.uptime_placeholder)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    hideLoadingDialog()
+                    Toast.makeText(this@MainActivity, "Disconnect error: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -784,45 +875,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         isInBackground = false
     }
 
-
-
-    private fun disconnectSSH() {
-        try {
-            monitoringJob?.cancel()
-
-            synchronized(channels) {
-                channels.forEach { channel ->
-                    try {
-                        if (channel.isConnected) {
-                            channel.disconnect()
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-                channels.clear()
-            }
-
-            currentSession?.let { session ->
-                if (session.isConnected) {
-                    session.disconnect()
-                }
-            }
-            currentSession = null
-
-            runOnUiThread {
-                btnConnect.text = getString(R.string.connect)
-                Toast.makeText(this, getString(R.string.disconnected), Toast.LENGTH_SHORT).show()
-                resetCharts()
-                tvUptime.text = getString(R.string.uptime_placeholder)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            runOnUiThread {
-                Toast.makeText(this, "Disconnect error: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
     private fun resetCharts() {
         chartCPU.clear()
         chartMemory.clear()

@@ -116,7 +116,6 @@ class GraphSettingsAdapter(
         }
     }
 
-    // 表示用の順序を取得（1から始まる）
     private fun getDisplayOrderForPosition(position: Int): Int {
         val currentSetting = settings[position]
         return settings.count { it.isVisible && it.order < currentSetting.order } + 1

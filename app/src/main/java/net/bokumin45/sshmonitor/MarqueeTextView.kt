@@ -68,10 +68,8 @@ class MarqueeTextView @JvmOverloads constructor(
         val textOffset = textHeight / 2 - paint.descent()
         val yPos = height / 2f + textOffset
 
-        // メインのテキスト描画
         canvas.drawText(text.toString(), xPos, yPos, paint)
 
-        // 次のテキストを描画（シームレスなループのため）
         if (xPos < 0) {
             canvas.drawText(text.toString(), xPos + textWidth + width, yPos, paint)
         }
