@@ -601,6 +601,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         menu.add(Menu.NONE, R.id.nav_add_server, Menu.NONE, getString(R.string.add_server))
         menu.add(Menu.NONE, R.id.nav_add_jump_host, Menu.NONE, getString(R.string.add_jump_host))
+        menu.add(Menu.NONE, R.id.nav_wifi_scan, Menu.NONE, getString(R.string.wifi_scan))
         menu.add(Menu.NONE, R.id.nav_remove_server, Menu.NONE, getString(R.string.remove_server))
         menu.add(Menu.NONE, R.id.nav_language, Menu.NONE, getString(R.string.change_language))
         menu.add(Menu.NONE, R.id.nav_donate, Menu.NONE, getString(R.string.donate))
