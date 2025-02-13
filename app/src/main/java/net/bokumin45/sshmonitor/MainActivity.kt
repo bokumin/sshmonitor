@@ -646,12 +646,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             getString(R.string.not_select_file)
         }
         btnSelectKey.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            showKeySelectionDialog(selectedKeyUri) { newUri ->
+                selectedKeyUri = newUri
             }
-            startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
         }
 
         AlertDialog.Builder(this)
@@ -702,12 +699,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         tvSelectedKey.text = getString(R.string.not_select_file)
 
         btnSelectKey.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            showKeySelectionDialog(selectedKeyUri) { newUri ->
+                selectedKeyUri = newUri
             }
-            startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
         }
 
         AlertDialog.Builder(this)
@@ -1341,13 +1335,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     tvSelectedKey.text = getString(R.string.no_key_selected)
 
                     btnSelectKey.setOnClickListener {
-                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                            addCategory(Intent.CATEGORY_OPENABLE)
-                            type = "*/*"
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                        showKeySelectionDialog(selectedKeyUri) { newUri ->
+                            selectedKeyUri = newUri
                         }
-                        startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
-
                     }
 
                     AlertDialog.Builder(this)
@@ -1419,12 +1409,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         tvSelectedKey.text = getString(R.string.not_select_file)
 
         btnSelectKey.setOnClickListener {
-            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            showKeySelectionDialog(selectedKeyUri) { newUri ->
+                selectedKeyUri = newUri
             }
-            startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
         }
 
         AlertDialog.Builder(this)
@@ -1466,6 +1453,46 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
             .setOnDismissListener {
                 currentDialogView = null
+            }
+            .show()
+    }
+
+    private fun showKeySelectionDialog(privateKeyUri: Uri?, onKeySelected: (Uri?) -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.select_key))
+            .setItems(arrayOf(
+                getString(R.string.select_new_key),
+                getString(R.string.remove_current_key),
+                getString(R.string.cancel)
+            )) { _, which ->
+                when (which) {
+                    0 -> { // 新しい鍵を選択
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                        }
+                        startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
+                    }
+                    1 -> { // 現在の鍵を削除
+                        privateKeyUri?.let { uri ->
+                            try {
+                                contentResolver.releasePersistableUriPermission(
+                                    uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                )
+                            } catch (e: SecurityException) {
+                                Log.e("KeySelection", "Failed to release permission for URI: $uri", e)
+                            }
+                        }
+                        onKeySelected(null)
+                        currentDialogView?.findViewById<TextView>(R.id.tvSelectedKey)?.text =
+                            getString(R.string.not_select_file)
+                    }
+                    2 -> { // キャンセル
+                        // 何もしない
+                    }
+                }
             }
             .show()
     }

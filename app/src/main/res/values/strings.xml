@@ -67,4 +67,7 @@
     <string name="no_servers">no servers</string>
     <string name="select_jump_host">Select JumpHost</string>
     <string name="jump_host_target">JumpHost Target</string>
+    <string name="select_key">Select Key</string>
+    <string name="select_new_key">select new_key</string>
+    <string name="remove_current_key">remove key</string>
 </resources>

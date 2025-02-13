@@ -68,4 +68,7 @@
     <string name="no_servers">no servers</string>
     <string name="select_jump_host">ジャンプホストを選択</string>
     <string name="jump_host_target">ジャンプホストターゲット</string>
+    <string name="select_key">鍵選択</string>
+    <string name="select_new_key">新しい鍵を選択</string>
+    <string name="remove_current_key">鍵を削除する</string>
 </resources>
