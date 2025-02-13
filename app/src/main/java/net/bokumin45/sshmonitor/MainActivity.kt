@@ -646,9 +646,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         } else {
             getString(R.string.not_select_file)
         }
+
         btnSelectKey.setOnClickListener {
             showKeySelectionDialog(selectedKeyUri) { newUri ->
-                selectedKeyUri = newUri
+                selectedKeyUri = newUri  // これは既に存在
             }
         }
 
@@ -666,7 +667,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         host = host,
                         port = port,
                         username = username,
-                        privateKeyUri = selectedKeyUri ?: config.privateKeyUri,
+                        privateKeyUri = selectedKeyUri,  // selectedKeyUriを使用
                         password = password,
                         jumpHostServer = config.jumpHostServer,
                         isJumpHost = config.isJumpHost
@@ -684,7 +685,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
-
 
     private fun showAddServerDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
@@ -744,7 +744,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             .setItems(serverNames) { _, which ->
                 val serverToRemove = serverConfigs[which]
 
-                // ジャンプホストとして使用されているサーバーかチェック
                 val dependentServers = serverConfigs.filter {
                     it.jumpHostServer?.host == serverToRemove.host &&
                             it.jumpHostServer?.port == serverToRemove.port &&
@@ -1434,7 +1433,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val btnSelectKey = dialogView.findViewById<Button>(R.id.btnSelectKey)
         val tvSelectedKey = dialogView.findViewById<TextView>(R.id.tvSelectedKey)
 
-        etPort.setText("22")  // デフォルトポート
+        etPort.setText("22")
         selectedKeyUri = null
         tvSelectedKey.text = getString(R.string.not_select_file)
 
@@ -1496,7 +1495,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 getString(R.string.cancel)
             )) { _, which ->
                 when (which) {
-                    0 -> { // 新しい鍵を選択
+                    0 -> {
                         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                             addCategory(Intent.CATEGORY_OPENABLE)
                             type = "*/*"
@@ -1504,7 +1503,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         }
                         startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
                     }
-                    1 -> { // 現在の鍵を削除
+                    1 -> {
                         privateKeyUri?.let { uri ->
                             try {
                                 contentResolver.releasePersistableUriPermission(
@@ -1515,12 +1514,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                                 Log.e("KeySelection", "Failed to release permission for URI: $uri", e)
                             }
                         }
+                        selectedKeyUri = null
                         onKeySelected(null)
                         currentDialogView?.findViewById<TextView>(R.id.tvSelectedKey)?.text =
                             getString(R.string.not_select_file)
                     }
-                    2 -> { // キャンセル
-                        // 何もしない
+                    2 -> {
                     }
                 }
             }
