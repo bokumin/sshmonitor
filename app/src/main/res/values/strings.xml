@@ -53,10 +53,6 @@
     <string name="open_wifi_setting">Open WiFi Settings</string>
     <string name="error_occurred">Error Occurred</string>
 
-    <string name="add_jump_host">Add JumpHost</string>
-    <string name="select_jump_host">Select JumpHost</string>
-    <string name="target_server">Target JumpHost</string>
-
     <string name="disconnect">Disconnect</string>
     <string name="connection_success">Connection successful</string>
     <string name="connection_error">Connection error: %1$s</string>
@@ -66,4 +62,8 @@
     <string name="uptime_format">Uptime: %1$s</string>
     <string name="connecting">Connecting...</string>
     <string name="disconnecting">disconnecting</string>
+
+    <string name="add_jump_host">Add JumpHost Server</string>
+    <string name="no_servers">no servers</string>
+    <string name="select_jump_host">Select JumpHost</string>
 </resources>

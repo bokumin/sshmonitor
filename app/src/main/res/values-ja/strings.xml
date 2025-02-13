@@ -52,9 +52,6 @@
     <string name="no_wifi_message">WiFiを有効にしてください</string>
     <string name="open_wifi_setting">WiFi設定を開く</string>
     <string name="error_occurred">エラーが発生しました</string>
-    <string name="add_jump_host">ジャンプホスト追加</string>
-    <string name="select_jump_host">ジャンプホスト選択</string>
-    <string name="target_server">ターゲットジャンプホスト</string>
 
     <string name="disconnect">切断</string>
 
@@ -66,4 +63,8 @@
     <string name="uptime_format">Uptime: %1$s</string>
     <string name="connecting">接続中...</string>
     <string name="disconnecting">切断中...</string>
+
+    <string name="add_jump_host">ジャンプホスト</string>
+    <string name="no_servers">no servers</string>
+    <string name="select_jump_host">ジャンプホストを選択</string>
 </resources>

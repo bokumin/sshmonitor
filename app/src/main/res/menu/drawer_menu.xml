@@ -4,6 +4,9 @@
         <item
             android:id="@+id/nav_add_server"
             android:title="@string/add_server" />
+        <item
+            android:id="@+id/nav_add_jump_host"
+            android:title="@string/add_jump_host" />
 
         <item android:title="@string/server_list">
             <menu>

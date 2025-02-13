@@ -2,8 +2,8 @@
     <!-- Base application theme. -->
     <style name="Theme.SSHMonitor" parent="Theme.MaterialComponents.NoActionBar">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">#657DC0</item>
-        <item name="colorPrimaryVariant">#657DC0</item>
+        <item name="colorPrimary">@color/purple_200</item>
+        <item name="colorPrimaryVariant">@color/purple_200</item>
         <item name="colorOnPrimary">@color/white</item>
         <!-- Secondary brand color. -->
         <item name="colorSecondary">@color/teal_200</item>

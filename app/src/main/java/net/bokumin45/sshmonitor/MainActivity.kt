@@ -52,13 +52,14 @@ data class ServerConfig(
     val port: Int,
     val username: String,
     var privateKeyUri: Uri? = null,
-    var password: String? = null
-){
+    var password: String? = null,
+    var jumpHostServer: ServerConfig? = null
+) {
     override fun toString(): String {
-        return "$host (${username})"
+        val prefix = if (jumpHostServer != null) "🔄 " else ""
+        return "$prefix$host (${username})"
     }
 }
-
 class ServerConfigManager(private val context: Context) {
     private val sharedPreferences = context.getSharedPreferences("ServerConfigs", Context.MODE_PRIVATE)
     private val uriPermissionManager = UriPermissionManager(context)
@@ -544,18 +545,16 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         menu.clear()
 
         val serverListSubmenu = menu.addSubMenu(getString(R.string.server_list))
-
         serverConfigs.forEachIndexed { index, config ->
-            serverListSubmenu.add(Menu.NONE, Menu.FIRST + index, Menu.NONE, "${config.host} (${config.username})").apply {
-                setOnMenuItemClickListener {
+            serverListSubmenu.add(Menu.NONE, Menu.FIRST + index, Menu.NONE, config.toString())
+                .setOnMenuItemClickListener {
                     showEditServerDialog(index)
                     true
                 }
-            }
         }
 
-        menu.add(Menu.NONE, R.id.nav_wifi_scan, Menu.NONE, getString(R.string.wifi_scan))
         menu.add(Menu.NONE, R.id.nav_add_server, Menu.NONE, getString(R.string.add_server))
+        menu.add(Menu.NONE, R.id.nav_add_jump_host, Menu.NONE, getString(R.string.add_jump_host))
         menu.add(Menu.NONE, R.id.nav_remove_server, Menu.NONE, getString(R.string.remove_server))
         menu.add(Menu.NONE, R.id.nav_language, Menu.NONE, getString(R.string.change_language))
         menu.add(Menu.NONE, R.id.nav_donate, Menu.NONE, getString(R.string.donate))
@@ -1189,6 +1188,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             R.id.nav_remove_server -> showRemoveServerDialog()
             R.id.nav_language -> toggleLanguage()
             R.id.nav_donate -> showDonateDialog()
+            R.id.nav_add_jump_host -> showJumpHostSelection()
             R.id.nav_wifi_scan -> {
                 WifiScanDialog(this) { ipAddress, hostname ->
                     val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
@@ -1249,6 +1249,70 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
         drawerLayout.closeDrawer(GravityCompat.START)
         return true
+    }
+    private fun showJumpHostSelection() {
+        if (serverConfigs.isEmpty()) {
+            Toast.makeText(this, getString(R.string.no_servers), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val serverNames = serverConfigs.map { "${it.host} (${it.username})" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.select_jump_host))
+            .setItems(serverNames) { _, which ->
+                val selectedServer = serverConfigs[which]
+                showAddServerWithJumpHost(selectedServer)
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+    }
+
+    private fun showAddServerWithJumpHost(jumpHost: ServerConfig) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
+        val etHost = dialogView.findViewById<EditText>(R.id.etHost)
+        val etPort = dialogView.findViewById<EditText>(R.id.etPort)
+        val etUsername = dialogView.findViewById<EditText>(R.id.etUsername)
+        val etPassword = dialogView.findViewById<EditText>(R.id.etPassword)
+        val btnSelectKey = dialogView.findViewById<Button>(R.id.btnSelectKey)
+        val tvSelectedKey = dialogView.findViewById<TextView>(R.id.tvSelectedKey)
+
+        selectedKeyUri = null
+        btnSelectKey.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            }
+            startActivityForResult(intent, REQUEST_CODE_OPEN_FILE)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("${getString(R.string.add_server)} (via ${jumpHost.host})")
+            .setView(dialogView)
+            .setPositiveButton(getString(R.string.add)) { _, _ ->
+                val host = etHost.text.toString()
+                val port = etPort.text.toString().toIntOrNull() ?: 22
+                val username = etUsername.text.toString()
+                val password = etPassword.text.toString().takeIf { it.isNotEmpty() }
+
+                if (host.isNotEmpty() && username.isNotEmpty()) {
+                    val config = ServerConfig(
+                        host = host,
+                        port = port,
+                        username = username,
+                        privateKeyUri = selectedKeyUri,
+                        password = password,
+                        jumpHostServer = jumpHost
+                    )
+                    serverConfigs.add(config)
+                    serverConfigManager.saveServerConfig(config)
+                    updateServerSpinner()
+                } else {
+                    Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
     }
 
     override fun onDestroy() {
