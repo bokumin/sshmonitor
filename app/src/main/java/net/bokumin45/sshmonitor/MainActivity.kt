@@ -213,6 +213,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var serverConfigManager: ServerConfigManager
     private var serverConfigs: MutableList<ServerConfig> = mutableListOf()
     private var currentSession: Session? = null
+    private var jumpSession: Session? = null
     private var monitoringJob: Job? = null
     private var selectedKeyUri: Uri? = null
 
@@ -891,65 +892,33 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun connectViaJumpHost(jsch: JSch, config: ServerConfig): Session {
-        val jumpHost = config.jumpHostServer!!
+        val jump = config.jumpHostServer!!
 
-        jumpHost.privateKeyUri?.let { uri ->
-            val keyBytes = readKeyFile(uri)
-            addIdentity(jsch, keyBytes)
-        }
-
-        val jumpSession = jsch.getSession(
-            jumpHost.username,
-            jumpHost.host,
-            jumpHost.port
+        jumpSession = jsch.getSession(
+            jump.username,
+            jump.host,
+            jump.port
         ).apply {
             setConfig("StrictHostKeyChecking", "no")
-            jumpHost.password?.let { setPassword(it) }
+            jump.password?.let { setPassword(it) }
             connect(30000)
         }
 
-        val channel = jumpSession.openChannel("exec") as ChannelExec
+        val assignedPort = jumpSession?.setPortForwardingL(
+            0,
+            config.host,
+            config.port
+        ) ?: throw IllegalStateException("Port forwarding failed")
 
-        val targetCommand = buildString {
-            append("ssh ")
-            append("-o StrictHostKeyChecking=no ")
-            if (config.privateKeyUri != null) {
-                append("-i ~/.ssh/id_rsa ")
-            }
-            if (config.password != null) {
-                append("-o PreferredAuthentications=password ")
-            }
-            append("-p ${config.port} ")
-            append("${config.username}@${config.host}")
+        return jsch.getSession(
+            config.username,
+            "127.0.0.1",
+            assignedPort
+        ).apply {
+            setConfig("StrictHostKeyChecking", "no")
+            config.password?.let { setPassword(it) }
+            connect(30000)
         }
-
-        channel.setCommand(targetCommand)
-
-        val inputStream = channel.inputStream
-        val outputStream = channel.outputStream
-        val errorStream = channel.errStream
-
-        channel.connect()
-
-        config.password?.let { password ->
-            val writer = outputStream.bufferedWriter()
-            writer.write("$password\n")
-            writer.flush()
-        }
-
-        CoroutineScope(Dispatchers.IO).launch {
-            val reader = errorStream.bufferedReader()
-            var line: String?
-            while (reader.readLine().also { line = it } != null) {
-                println("SSH Error: $line")
-            }
-        }
-
-        synchronized(channels) {
-            channels.add(channel)
-        }
-
-        return jumpSession
     }
 
     private fun disconnectSSH() {
@@ -974,10 +943,24 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
                 currentSession?.let { session ->
                     if (session.isConnected) {
+                        try {
+                            session.port.let { port ->
+                                jumpSession?.delPortForwardingL(port)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
                         session.disconnect()
                     }
                 }
                 currentSession = null
+
+                jumpSession?.let { session ->
+                    if (session.isConnected) {
+                        session.disconnect()
+                    }
+                }
+                jumpSession = null
 
                 withContext(Dispatchers.Main) {
                     hideLoadingDialog()
@@ -995,7 +978,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }
     }
-
 
     private fun startBackgroundDisconnectTimer() {
         cancelBackgroundDisconnect()
