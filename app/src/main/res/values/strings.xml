@@ -66,4 +66,5 @@
     <string name="add_jump_host">Add JumpHost Server</string>
     <string name="no_servers">no servers</string>
     <string name="select_jump_host">Select JumpHost</string>
+    <string name="jump_host_target">JumpHost Target</string>
 </resources>

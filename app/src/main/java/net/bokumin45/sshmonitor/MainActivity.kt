@@ -3,6 +3,7 @@ package net.bokumin45.sshmonitor
 import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -16,6 +17,7 @@ import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.widget.*
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -53,13 +55,15 @@ data class ServerConfig(
     val username: String,
     var privateKeyUri: Uri? = null,
     var password: String? = null,
-    var jumpHostServer: ServerConfig? = null
+    var jumpHostServer: ServerConfig? = null,
+    var isJumpHost: Boolean = false
 ) {
     override fun toString(): String {
-        val prefix = if (jumpHostServer != null) "🔄 " else ""
+        val prefix = if (isJumpHost) "🔄 " else ""
         return "$prefix$host (${username})"
     }
 }
+
 class ServerConfigManager(private val context: Context) {
     private val sharedPreferences = context.getSharedPreferences("ServerConfigs", Context.MODE_PRIVATE)
     private val uriPermissionManager = UriPermissionManager(context)
@@ -104,22 +108,56 @@ class ServerConfigManager(private val context: Context) {
 
     private fun saveConfigs(configs: List<ServerConfig>) {
         sharedPreferences.edit().putString("configs", configs.joinToString("|") {
-            "${it.host},${it.port},${it.username},${it.privateKeyUri?.toString() ?: "null"},${it.password ?: "null"}"
+            buildString {
+                append("${it.host},${it.port},${it.username}")
+                append(",${it.privateKeyUri?.toString() ?: "null"}")
+                append(",${it.password ?: "null"}")
+                append(",${it.isJumpHost}")
+                append(",${it.jumpHostServer?.let { jump ->
+                    "${jump.host},${jump.port},${jump.username}," +
+                            "${jump.privateKeyUri?.toString() ?: "null"}," +
+                            "${jump.password ?: "null"}"
+                } ?: "null"}")
+            }
         }).apply()
     }
 
     fun getServerConfigs(): List<ServerConfig> {
         val configString = sharedPreferences.getString("configs", "") ?: ""
-        return configString.split("|").filter { it.isNotEmpty() }.map {
-            val (host, port, username, privateKeyUri, password) = it.split(",", limit = 5)
-            ServerConfig(
-                host,
-                port.toInt(),
-                username,
-                privateKeyUri.takeIf { it != "null" }?.let { Uri.parse(it) },
-                password.takeIf { it != "null" }
-            )
+        val configs = mutableListOf<ServerConfig>()
+        val jumpHostMap = mutableMapOf<String, ServerConfig>()
+
+        configString.split("|").filter { it.isNotEmpty() }.forEach { configStr ->
+            val parts = configStr.split(",")
+            if (parts.size >= 6) {
+                val mainConfig = ServerConfig(
+                    host = parts[0],
+                    port = parts[1].toInt(),
+                    username = parts[2],
+                    privateKeyUri = parts[3].takeIf { it != "null" }?.let { Uri.parse(it) },
+                    password = parts[4].takeIf { it != "null" },
+                    isJumpHost = parts[5].toBoolean()
+                )
+
+                if (parts.size > 6 && parts[6] != "null") {
+                    val jumpParts = parts.subList(6, parts.size)
+                    if (jumpParts.size >= 5) {
+                        val jumpConfig = ServerConfig(
+                            host = jumpParts[0],
+                            port = jumpParts[1].toInt(),
+                            username = jumpParts[2],
+                            privateKeyUri = jumpParts[3].takeIf { it != "null" }?.let { Uri.parse(it) },
+                            password = jumpParts[4].takeIf { it != "null" }
+                        )
+                        mainConfig.jumpHostServer = jumpConfig
+                    }
+                }
+
+                configs.add(mainConfig)
+            }
         }
+
+        return configs
     }
 }
 
@@ -566,34 +604,46 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         menu.add(Menu.NONE, R.id.nav_donate, Menu.NONE, getString(R.string.donate))
     }
 
+    @SuppressLint("StringFormatInvalid")
     private fun showEditServerDialog(index: Int) {
         val config = serverConfigs[index]
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
+        val inflater = LayoutInflater.from(this)
+        val dialogView = if (config.isJumpHost) {
+            inflater.inflate(R.layout.dialog_edit_jump_host, null).apply {
+                findViewById<TextView>(R.id.tvJumpHostInfo).text =
+                    getString(R.string.jump_host_target, config.jumpHostServer?.host ?: "")
+            }
+        } else {
+            inflater.inflate(R.layout.dialog_add_server, null)
+        }
         currentDialogView = dialogView
 
-        val etHost = dialogView.findViewById<EditText>(R.id.etHost)
-        val etPort = dialogView.findViewById<EditText>(R.id.etPort)
-        val etUsername = dialogView.findViewById<EditText>(R.id.etUsername)
-        val etPassword = dialogView.findViewById<EditText>(R.id.etPassword)
-        val btnSelectKey = dialogView.findViewById<Button>(R.id.btnSelectKey)
-        val tvSelectedKey = dialogView.findViewById<TextView>(R.id.tvSelectedKey)
+        val containerView = if (config.isJumpHost) {
+            dialogView.findViewById<ViewGroup>(R.id.jumpHostInfoContainer)
+                .parent as ViewGroup
+        } else {
+            dialogView
+        }
 
-        // 既存の設定を表示
+        val etHost = containerView.findViewById<EditText>(R.id.etHost)
+        val etPort = containerView.findViewById<EditText>(R.id.etPort)
+        val etUsername = containerView.findViewById<EditText>(R.id.etUsername)
+        val etPassword = containerView.findViewById<EditText>(R.id.etPassword)
+        val btnSelectKey = containerView.findViewById<Button>(R.id.btnSelectKey)
+        val tvSelectedKey = containerView.findViewById<TextView>(R.id.tvSelectedKey)
+
         etHost.setText(config.host)
         etPort.setText(config.port.toString())
         etUsername.setText(config.username)
         etPassword.setText(config.password)
 
-        // 重要: selectedKeyUriを現在の設定から初期化
         selectedKeyUri = config.privateKeyUri
 
-        // 既存の鍵情報があれば表示
         tvSelectedKey.text = if (selectedKeyUri != null) {
             getString(R.string.select_file) + ": ${DocumentFile.fromSingleUri(this, selectedKeyUri!!)?.name}"
         } else {
             getString(R.string.not_select_file)
         }
-
         btnSelectKey.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
@@ -617,8 +667,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         host = host,
                         port = port,
                         username = username,
-                        privateKeyUri = selectedKeyUri ?: config.privateKeyUri,  // 既存の鍵を維持
-                        password = password
+                        privateKeyUri = selectedKeyUri ?: config.privateKeyUri,
+                        password = password,
+                        jumpHostServer = config.jumpHostServer,
+                        isJumpHost = config.isJumpHost
                     )
 
                     serverConfigs[index] = updatedConfig
@@ -630,12 +682,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton(getString(R.string.cancel)) { _, _ ->
-                currentDialogView = null
-            }
-            .setOnDismissListener {
-                currentDialogView = null
-            }
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -1365,6 +1412,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     private fun showAddServerWithJumpHost(jumpHost: ServerConfig) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
+        currentDialogView = dialogView
+
         val etHost = dialogView.findViewById<EditText>(R.id.etHost)
         val etPort = dialogView.findViewById<EditText>(R.id.etPort)
         val etUsername = dialogView.findViewById<EditText>(R.id.etUsername)
@@ -1372,7 +1421,10 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val btnSelectKey = dialogView.findViewById<Button>(R.id.btnSelectKey)
         val tvSelectedKey = dialogView.findViewById<TextView>(R.id.tvSelectedKey)
 
+        etPort.setText("22")  // デフォルトポート
         selectedKeyUri = null
+        tvSelectedKey.text = getString(R.string.not_select_file)
+
         btnSelectKey.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
@@ -1398,16 +1450,30 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         username = username,
                         privateKeyUri = selectedKeyUri,
                         password = password,
-                        jumpHostServer = jumpHost
+                        jumpHostServer = jumpHost,
+                        isJumpHost = true
                     )
-                    serverConfigs.add(config)
+
+                    val index = serverConfigs.indexOf(jumpHost)
+                    if (index >= 0) {
+                        serverConfigs.add(index + 1, config)
+                    } else {
+                        serverConfigs.add(config)
+                    }
+
                     serverConfigManager.saveServerConfig(config)
                     updateServerSpinner()
+                    Toast.makeText(this, getString(R.string.add_server), Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, getString(R.string.require_host_user), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton(getString(R.string.cancel), null)
+            .setNegativeButton(getString(R.string.cancel)) { _, _ ->
+                currentDialogView = null
+            }
+            .setOnDismissListener {
+                currentDialogView = null
+            }
             .show()
     }
 
