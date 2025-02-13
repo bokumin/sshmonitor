@@ -70,4 +70,8 @@
     <string name="select_key">Select key</string>
     <string name="select_new_key">select new_key</string>
     <string name="remove_current_key">remove key</string>
+    <string name="confirm_removal">Confirm Removal</string>
+    <string name="jump_host_removal_warning">%d servers using this jump host will also be removed. Continue?</string>
+    <string name="remove_all">Remove All</string>
+    <string name="servers_removed">%d servers have been removed</string>
 </resources>

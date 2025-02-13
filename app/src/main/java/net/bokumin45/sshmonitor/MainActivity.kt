@@ -243,6 +243,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        title = ""
         val savedLanguage = getSharedPreferences("Settings", MODE_PRIVATE)
             .getString("language", null)
 
@@ -737,14 +738,48 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             return
         }
 
-        val serverNames = serverConfigs.map { "${it.host} (${it.username})" }.toTypedArray()
+        val serverNames = serverConfigs.map {
+            val prefix = if (it.isJumpHost) "🔄 " else ""
+            "${prefix}${it.host} (${it.username})"
+        }.toTypedArray()
+
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.remove_server))
             .setItems(serverNames) { _, which ->
-                val removedConfig = serverConfigs.removeAt(which)
-                serverConfigManager.removeServerConfig(removedConfig)
-                updateServerSpinner()
-                Toast.makeText(this, getString(R.string.server_removed), Toast.LENGTH_SHORT).show()
+                val removedConfig = serverConfigs[which]
+
+                val dependentServers = if (removedConfig.isJumpHost) {
+                    serverConfigs.filter { it.jumpHostServer?.host == removedConfig.host }
+                } else {
+                    emptyList()
+                }
+
+                if (dependentServers.isNotEmpty()) {
+                    AlertDialog.Builder(this)
+                        .setTitle(getString(R.string.confirm_removal))
+                        .setMessage(getString(R.string.jump_host_removal_warning, dependentServers.size))
+                        .setPositiveButton(getString(R.string.remove_all)) { _, _ ->
+                            dependentServers.forEach { dependent ->
+                                serverConfigs.remove(dependent)
+                                serverConfigManager.removeServerConfig(dependent)
+                            }
+                            serverConfigs.remove(removedConfig)
+                            serverConfigManager.removeServerConfig(removedConfig)
+                            updateServerSpinner()
+                            Toast.makeText(
+                                this,
+                                getString(R.string.servers_removed, dependentServers.size + 1),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        .setNegativeButton(getString(R.string.cancel), null)
+                        .show()
+                } else {
+                    serverConfigs.remove(removedConfig)
+                    serverConfigManager.removeServerConfig(removedConfig)
+                    updateServerSpinner()
+                    Toast.makeText(this, getString(R.string.server_removed), Toast.LENGTH_SHORT).show()
+                }
             }
             .setNegativeButton(getString(R.string.cancel), null)
             .show()
@@ -958,13 +993,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         session.disconnect()
                     }
                 }
-                currentSession = null
 
                 jumpSession?.let { session ->
                     if (session.isConnected) {
                         session.disconnect()
                     }
                 }
+
+                currentSession = null
                 jumpSession = null
 
                 withContext(Dispatchers.Main) {
