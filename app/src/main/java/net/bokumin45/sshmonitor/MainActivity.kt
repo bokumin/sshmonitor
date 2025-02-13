@@ -208,6 +208,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var chartMemory: LineChart
     private lateinit var chartDisk: LineChart
     private lateinit var tvUptime: TextView
+    private lateinit var graphContainer: ViewGroup
+    private lateinit var terminalContainer: ViewGroup
+    private lateinit var procContainer: ViewGroup
 
     private val gson = Gson()
     private lateinit var serverConfigManager: ServerConfigManager
@@ -280,7 +283,73 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         setupUptimeCard()
         setupButtons()
 
+        graphContainer = findViewById(R.id.graphContainer)
+        terminalContainer = findViewById(R.id.terminalContainer)
+        btnConnect = findViewById(R.id.btnConnect)
+
+        findViewById<Button>(R.id.btnTerminal).setOnClickListener {
+            showTerminal()
+            updateCenterButton(false)
+        }
+
+        btnConnect.setOnClickListener {
+            if (isGraphMode()) {
+                // グラフモードの場合は接続/切断処理
+                val selectedServer = spinnerServers.selectedItem as? ServerConfig
+                if (selectedServer != null) {
+                    if (currentSession == null) {
+                        connectSSH(selectedServer)
+                    } else {
+                        disconnectSSH()
+                    }
+                } else {
+                    Toast.makeText(this, getString(R.string.a_server_select), Toast.LENGTH_SHORT)
+                        .show()
+                }
+            } else {
+                // Terminal/Procモードの場合はグラフ表示に切り替え
+                showGraphs()
+                updateCenterButton(true) // 中央ボタンを接続モードに戻す
+            }
+        }
     }
+
+    private fun isGraphMode(): Boolean {
+        return graphContainer.visibility == View.VISIBLE
+    }
+
+    private fun updateCenterButton(isConnectMode: Boolean) {
+        if (isConnectMode) {
+            // 接続モードの場合
+            btnConnect.text = if (currentSession != null) {
+                getString(R.string.disconnect)
+            } else {
+                getString(R.string.connect)
+            }
+        } else {
+            // グラフモードの場合
+            btnConnect.text = getString(R.string.graph)
+        }
+    }
+
+    private fun showGraphs() {
+        graphContainer.visibility = View.VISIBLE
+        terminalContainer.visibility = View.GONE
+        procContainer.visibility = View.GONE
+    }
+
+    private fun showTerminal() {
+        graphContainer.visibility = View.GONE
+        terminalContainer.visibility = View.VISIBLE
+        procContainer.visibility = View.GONE
+    }
+
+    private fun showProcessList() {
+        graphContainer.visibility = View.GONE
+        terminalContainer.visibility = View.GONE
+        procContainer.visibility = View.VISIBLE
+    }
+
     private fun setupUptimeCard() {
         val uptimeHeader = findViewById<LinearLayout>(R.id.uptimeHeader)
         val uptimeContent = findViewById<LinearLayout>(R.id.uptimeContent)
@@ -1013,6 +1082,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 }
             }
         }
+        showGraphs()
+        updateCenterButton(true)
     }
 
     private fun startBackgroundDisconnectTimer() {
@@ -1535,7 +1606,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun setupButtons() {
-        // 既存のボタン設定
         btnConnect.setOnClickListener {
             val selectedServer = spinnerServers.selectedItem as? ServerConfig
             if (selectedServer != null) {
@@ -1557,12 +1627,5 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }
 
-        findViewById<Button>(R.id.btnProc).setOnClickListener {
-            if (currentSession?.isConnected == true) {
-                ProcDialog(this, currentSession).show()
-            } else {
-                Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show()
-            }
-        }
     }
 }

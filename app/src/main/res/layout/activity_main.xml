@@ -133,7 +133,6 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- ここから下のボタンコンテナを変更 -->
                 <LinearLayout
                     android:id="@+id/buttonContainer"
                     android:layout_width="match_parent"
@@ -160,19 +159,20 @@
                             android:layout_marginStart="8dp"
                             android:text="@string/connect" />
 
-                        <Button
-                            android:id="@+id/btnProc"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="8dp"
-                            android:text="Proc"
-                            android:drawableStart="@drawable/ic_list"
-                            android:paddingStart="12dp"/>
 
                 </LinearLayout>
 
+                <FrameLayout
+                    android:id="@+id/contentContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_above="@id/buttonContainer"
+                    android:layout_below="@id/uptimeCard"
+                    android:padding="12dp"
+                    android:background="#2F343F">
+
                 <LinearLayout
+                    android:id="@+id/graphContainer"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:layout_above="@id/buttonContainer"
@@ -210,6 +210,44 @@
                             android:layout_weight="1" />
 
                 </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/terminalContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                                <EditText
+                                    android:id="@+id/commandInput"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:background="@color/surface_dark"
+                                    android:textColor="@android:color/white"
+                                    android:padding="12dp"
+                                    android:hint="Enter command..."
+                                    android:textColorHint="#80FFFFFF"
+                                    android:fontFamily="monospace"/>
+
+                                <ScrollView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="0dp"
+                                    android:layout_weight="1">
+
+                                        <TextView
+                                            android:id="@+id/terminalOutput"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:padding="12dp"
+                                            android:textColor="@android:color/white"
+                                            android:fontFamily="monospace"
+                                            android:textSize="14sp"/>
+
+                                </ScrollView>
+
+                        </LinearLayout>
+
+                </FrameLayout>
         </RelativeLayout>
 
         <!-- Sidebar content -->

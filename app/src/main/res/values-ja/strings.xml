@@ -77,4 +77,5 @@
     <string name="servers_removed">サーバーとその依存関係が削除されました</string>
     <string name="warning">警告</string>
     <string name="not_connected">接続されませんでした</string>
+    <string name="graph">グラフ</string>
 </resources>
