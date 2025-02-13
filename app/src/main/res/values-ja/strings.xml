@@ -72,7 +72,8 @@
     <string name="select_new_key">新しい鍵を選択</string>
     <string name="remove_current_key">鍵を削除する</string>
     <string name="confirm_removal">削除の確認</string>
-    <string name="jump_host_removal_warning">この踏み台サーバーを使用している %d 台のサーバーも削除されます。続行しますか？</string>
-    <string name="remove_all">すべて削除</string>
-    <string name="servers_removed">%d 台のサーバーを削除しました</string>
+    <string name="jump_host_removal_warning">このサーバーはジャンプホストとして使用されています。削除すると、このジャンプホストを使用している全てのサーバー設定も削除されます。続行しますか？</string>
+    <string name="remove_all">全て削除</string>
+    <string name="servers_removed">サーバーとその依存関係が削除されました</string>
+    <string name="warning">警告</string>
 </resources>
