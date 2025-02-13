@@ -756,6 +756,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         .setTitle(getString(R.string.warning))
                         .setMessage(getString(R.string.jump_host_removal_warning))
                         .setPositiveButton(getString(R.string.remove_all)) { _, _ ->
+
                             dependentServers.forEach { dependent ->
                                 serverConfigs.remove(dependent)
                                 serverConfigManager.removeServerConfig(dependent)
