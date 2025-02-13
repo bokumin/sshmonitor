@@ -278,6 +278,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadGraphSettings()
         updateGraphVisibility()
         setupUptimeCard()
+        setupButtons()
 
     }
     private fun setupUptimeCard() {
@@ -1531,5 +1532,37 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         super.onDestroy()
         disconnectSSH()
         currentDialogView = null
+    }
+
+    private fun setupButtons() {
+        // 既存のボタン設定
+        btnConnect.setOnClickListener {
+            val selectedServer = spinnerServers.selectedItem as? ServerConfig
+            if (selectedServer != null) {
+                if (currentSession == null) {
+                    connectSSH(selectedServer)
+                } else {
+                    disconnectSSH()
+                }
+            } else {
+                Toast.makeText(this, getString(R.string.a_server_select), Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        findViewById<Button>(R.id.btnTerminal).setOnClickListener {
+            if (currentSession?.isConnected == true) {
+                TerminalDialog(this, currentSession).show()
+            } else {
+                Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        findViewById<Button>(R.id.btnProc).setOnClickListener {
+            if (currentSession?.isConnected == true) {
+                ProcDialog(this, currentSession).show()
+            } else {
+                Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 }

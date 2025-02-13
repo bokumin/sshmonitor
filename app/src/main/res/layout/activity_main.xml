@@ -7,6 +7,7 @@
     android:layout_height="match_parent"
     android:background="#2F343F">
 
+        <!-- Main content -->
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent">
@@ -53,8 +54,8 @@
 
                         <Button
                             android:id="@+id/btnAddServer"
-                            android:layout_width="wrap_content"
-                            android:layout_height="match_parent"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
                             android:drawableRight="@drawable/ic_add"
                             android:gravity="center"
                             android:background="@android:color/transparent"
@@ -132,19 +133,49 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
-                <Button
-                    android:id="@+id/btnConnect"
+                <!-- ここから下のボタンコンテナを変更 -->
+                <LinearLayout
+                    android:id="@+id/buttonContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_alignParentBottom="true"
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginBottom="16dp"
-                    android:text="@string/connect" />
+                    android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnTerminal"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Terminal"
+                            android:drawableStart="@drawable/ic_terminal"
+                            android:paddingStart="12dp"/>
+
+                        <Button
+                            android:id="@+id/btnConnect"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="@string/connect" />
+
+                        <Button
+                            android:id="@+id/btnProc"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="Proc"
+                            android:drawableStart="@drawable/ic_list"
+                            android:paddingStart="12dp"/>
+
+                </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:layout_above="@id/btnConnect"
+                    android:layout_above="@id/buttonContainer"
                     android:layout_below="@id/uptimeCard"
                     android:orientation="vertical"
                     android:padding="12dp"
