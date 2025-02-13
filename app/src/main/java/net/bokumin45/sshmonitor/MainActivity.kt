@@ -892,35 +892,46 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun connectViaJumpHost(jsch: JSch, config: ServerConfig): Session {
-        val jump = config.jumpHostServer!!
+        try {
+            val jump = config.jumpHostServer!!
+            jumpSession = jsch.getSession(
+                jump.username,
+                jump.host,
+                jump.port
+            ).apply {
+                setConfig("StrictHostKeyChecking", "no")
+                jump.privateKeyUri?.let { uri ->
+                    val keyBytes = readKeyFile(uri)
+                    jsch.addIdentity("jump_key", keyBytes, null, null)
+                }
+                jump.password?.let { setPassword(it) }
+                connect(30000)
+            }
 
-        jumpSession = jsch.getSession(
-            jump.username,
-            jump.host,
-            jump.port
-        ).apply {
-            setConfig("StrictHostKeyChecking", "no")
-            jump.password?.let { setPassword(it) }
-            connect(30000)
-        }
+            val assignedPort = jumpSession?.setPortForwardingL(
+                0,
+                config.host,
+                config.port
+            ) ?: throw IllegalStateException("Port forwarding failed")
 
-        val assignedPort = jumpSession?.setPortForwardingL(
-            0,
-            config.host,
-            config.port
-        ) ?: throw IllegalStateException("Port forwarding failed")
-
-        return jsch.getSession(
-            config.username,
-            "127.0.0.1",
-            assignedPort
-        ).apply {
-            setConfig("StrictHostKeyChecking", "no")
-            config.password?.let { setPassword(it) }
-            connect(30000)
+            return jsch.getSession(
+                config.username,
+                "127.0.0.1",
+                assignedPort
+            ).apply {
+                setConfig("StrictHostKeyChecking", "no")
+                config.privateKeyUri?.let { uri ->
+                    val keyBytes = readKeyFile(uri)
+                    jsch.addIdentity("target_key", keyBytes, null, null)
+                }
+                config.password?.let { setPassword(it) }
+                connect(30000)
+            }
+        } catch (e: Exception) {
+            jumpSession?.disconnect()
+            throw e
         }
     }
-
     private fun disconnectSSH() {
         showLoadingDialog(getString(R.string.disconnecting))
 
