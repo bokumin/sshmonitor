@@ -76,16 +76,22 @@ class ServerConfigManager(private val context: Context) {
 
     fun updateServerConfig(index: Int, config: ServerConfig) {
         val configs = getServerConfigs().toMutableList()
-        configs[index].privateKeyUri?.let { oldUri ->
+
+        val oldUri = configs[index].privateKeyUri
+        if (oldUri != null && oldUri != config.privateKeyUri) {
             uriPermissionManager.releasePersistablePermission(oldUri)
         }
-        // 新しい鍵ファイルのURIに対して永続的なパーミッションを取得
+
         config.privateKeyUri?.let { newUri ->
-            uriPermissionManager.takePersistablePermission(newUri)
+            if (newUri != oldUri) {
+                uriPermissionManager.takePersistablePermission(newUri)
+            }
         }
+
         configs[index] = config
         saveConfigs(configs)
     }
+
 
     fun removeServerConfig(config: ServerConfig) {
         val configs = getServerConfigs().toMutableList()
@@ -98,7 +104,7 @@ class ServerConfigManager(private val context: Context) {
 
     private fun saveConfigs(configs: List<ServerConfig>) {
         sharedPreferences.edit().putString("configs", configs.joinToString("|") {
-            "${it.host},${it.port},${it.username},${it.privateKeyUri},${it.password}"
+            "${it.host},${it.port},${it.username},${it.privateKeyUri?.toString() ?: "null"},${it.password ?: "null"}"
         }).apply()
     }
 
@@ -564,6 +570,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val config = serverConfigs[index]
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
         currentDialogView = dialogView
+
         val etHost = dialogView.findViewById<EditText>(R.id.etHost)
         val etPort = dialogView.findViewById<EditText>(R.id.etPort)
         val etUsername = dialogView.findViewById<EditText>(R.id.etUsername)
@@ -571,11 +578,16 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         val btnSelectKey = dialogView.findViewById<Button>(R.id.btnSelectKey)
         val tvSelectedKey = dialogView.findViewById<TextView>(R.id.tvSelectedKey)
 
+        // 既存の設定を表示
         etHost.setText(config.host)
         etPort.setText(config.port.toString())
         etUsername.setText(config.username)
         etPassword.setText(config.password)
+
+        // 重要: selectedKeyUriを現在の設定から初期化
         selectedKeyUri = config.privateKeyUri
+
+        // 既存の鍵情報があれば表示
         tvSelectedKey.text = if (selectedKeyUri != null) {
             getString(R.string.select_file) + ": ${DocumentFile.fromSingleUri(this, selectedKeyUri!!)?.name}"
         } else {
@@ -601,7 +613,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 val password = etPassword.text.toString().takeIf { it.isNotEmpty() }
 
                 if (host.isNotEmpty() && username.isNotEmpty()) {
-                    val updatedConfig = ServerConfig(host, port, username, selectedKeyUri, password)
+                    val updatedConfig = ServerConfig(
+                        host = host,
+                        port = port,
+                        username = username,
+                        privateKeyUri = selectedKeyUri ?: config.privateKeyUri,  // 既存の鍵を維持
+                        password = password
+                    )
+
                     serverConfigs[index] = updatedConfig
                     serverConfigManager.updateServerConfig(index, updatedConfig)
                     updateServerSpinner()
@@ -619,6 +638,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
             .show()
     }
+
 
     private fun showAddServerDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_server, null)
@@ -781,33 +801,108 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val jsch = JSch()
+
                 config.privateKeyUri?.let { uri ->
                     val keyBytes = readKeyFile(uri)
                     addIdentity(jsch, keyBytes)
                 }
 
-                currentSession = jsch.getSession(config.username, config.host, config.port).apply {
-                    setConfig("StrictHostKeyChecking", "no")
-                    config.password?.let { setPassword(it) }
-                    connect(30000)
+                currentSession = if (config.jumpHostServer != null) {
+                    connectViaJumpHost(jsch, config)
+                } else {
+                    jsch.getSession(config.username, config.host, config.port).apply {
+                        setConfig("StrictHostKeyChecking", "no")
+                        config.password?.let { setPassword(it) }
+                        connect(30000)
+                    }
                 }
 
                 withContext(Dispatchers.Main) {
-                    hideLoadingDialog() // 接続成功時にダイアログを非表示
+                    hideLoadingDialog()
                     btnConnect.text = getString(R.string.disconnect)
-                    Toast.makeText(this@MainActivity, getString(R.string.connection_success), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.connection_success),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
 
                 startMonitoring()
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    hideLoadingDialog() // エラー時にダイアログを非表示
+                    hideLoadingDialog()
                     btnConnect.text = getString(R.string.connect)
-                    Toast.makeText(this@MainActivity, getString(R.string.connection_error, e.message), Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.connection_error, e.message),
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
+    }
+
+    private fun connectViaJumpHost(jsch: JSch, config: ServerConfig): Session {
+        val jumpHost = config.jumpHostServer!!
+
+        jumpHost.privateKeyUri?.let { uri ->
+            val keyBytes = readKeyFile(uri)
+            addIdentity(jsch, keyBytes)
+        }
+
+        val jumpSession = jsch.getSession(
+            jumpHost.username,
+            jumpHost.host,
+            jumpHost.port
+        ).apply {
+            setConfig("StrictHostKeyChecking", "no")
+            jumpHost.password?.let { setPassword(it) }
+            connect(30000)
+        }
+
+        val channel = jumpSession.openChannel("exec") as ChannelExec
+
+        val targetCommand = buildString {
+            append("ssh ")
+            append("-o StrictHostKeyChecking=no ")
+            if (config.privateKeyUri != null) {
+                append("-i ~/.ssh/id_rsa ")
+            }
+            if (config.password != null) {
+                append("-o PreferredAuthentications=password ")
+            }
+            append("-p ${config.port} ")
+            append("${config.username}@${config.host}")
+        }
+
+        channel.setCommand(targetCommand)
+
+        val inputStream = channel.inputStream
+        val outputStream = channel.outputStream
+        val errorStream = channel.errStream
+
+        channel.connect()
+
+        config.password?.let { password ->
+            val writer = outputStream.bufferedWriter()
+            writer.write("$password\n")
+            writer.flush()
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            val reader = errorStream.bufferedReader()
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                println("SSH Error: $line")
+            }
+        }
+
+        synchronized(channels) {
+            channels.add(channel)
+        }
+
+        return jumpSession
     }
 
     private fun disconnectSSH() {
@@ -853,6 +948,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
         }
     }
+
 
     private fun startBackgroundDisconnectTimer() {
         cancelBackgroundDisconnect()
