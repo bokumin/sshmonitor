@@ -334,6 +334,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         graphContainer.visibility = View.VISIBLE
         terminalContainer.visibility = View.GONE
         btnConnect.text = getString(R.string.connect)
+        updateConnectButtonText()
     }
     private fun showTerminal() {
         isTerminalMode = true
@@ -342,7 +343,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         btnConnect.text = getString(R.string.graph)
         commandInput.requestFocus()
     }
-
 
     private lateinit var terminalScrollView: ScrollView
     private var isTerminalMode = false
