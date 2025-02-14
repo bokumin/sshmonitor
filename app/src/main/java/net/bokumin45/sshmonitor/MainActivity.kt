@@ -39,6 +39,7 @@ import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet
+import com.google.android.material.card.MaterialCardView
 import com.google.android.material.navigation.NavigationView
 import com.google.gson.Gson
 import com.jcraft.jsch.ChannelExec
@@ -239,6 +240,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var currentInputBeforeHistory: String = ""
     private val prompt = "$ "
     private var currentCommand: ChannelExec? = null
+    private var lastConnectedServerIndex: Int = -1
+
 
     private var graphSettings = listOf(
         GraphSetting("CPU", true, 0),
@@ -274,11 +277,11 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             resources.updateConfiguration(config, resources.displayMetrics)
         }
 
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        Security.addProvider(BouncyCastleProvider())
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         serverConfigManager = ServerConfigManager(this)
         serverConfigs = serverConfigManager.getServerConfigs().toMutableList()
+
 
         initializeViews()
         setupToolbar()
@@ -325,6 +328,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
+
     private fun isGraphMode(): Boolean {
         return graphContainer.visibility == View.VISIBLE
     }
@@ -335,6 +339,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         terminalContainer.visibility = View.GONE
         btnConnect.text = getString(R.string.connect)
         updateConnectButtonText()
+        findViewById<MaterialCardView>(R.id.uptimeCard).visibility = View.VISIBLE
     }
     private fun showTerminal() {
         isTerminalMode = true
@@ -342,6 +347,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         terminalContainer.visibility = View.VISIBLE
         btnConnect.text = getString(R.string.graph)
         commandInput.requestFocus()
+        findViewById<MaterialCardView>(R.id.uptimeCard).visibility = View.GONE
     }
 
     private lateinit var terminalScrollView: ScrollView
@@ -1256,6 +1262,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
     private fun disconnectSSH() {
+
         showLoadingDialog(getString(R.string.disconnecting))
 
         CoroutineScope(Dispatchers.IO).launch {
