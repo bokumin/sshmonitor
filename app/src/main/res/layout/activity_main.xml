@@ -216,7 +216,30 @@
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:orientation="vertical"
-                            android:visibility="gone">
+                            android:visibility="gone"
+                            android:background="@color/surface_dark">
+
+                                <ScrollView
+                                    android:id="@+id/terminalScrollView"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="0dp"
+                                    android:layout_weight="1"
+                                    android:transcriptMode="alwaysScroll"
+                                    android:fillViewport="true">
+
+                                        <TextView
+                                            android:id="@+id/terminalOutput"
+                                            android:layout_width="match_parent"
+                                            android:layout_height="wrap_content"
+                                            android:padding="8dp"
+                                            android:textColor="@android:color/white"
+                                            android:fontFamily="monospace"
+                                            android:textSize="14sp"
+                                            android:bufferType="spannable"
+                                            android:scrollbars="vertical"
+                                            android:fadeScrollbars="false"/>
+
+                                </ScrollView>
 
                                 <EditText
                                     android:id="@+id/commandInput"
@@ -224,29 +247,15 @@
                                     android:layout_height="wrap_content"
                                     android:background="@color/surface_dark"
                                     android:textColor="@android:color/white"
-                                    android:padding="12dp"
+                                    android:padding="8dp"
                                     android:hint="Enter command..."
                                     android:textColorHint="#80FFFFFF"
-                                    android:fontFamily="monospace"/>
-
-                                <ScrollView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="0dp"
-                                    android:layout_weight="1">
-
-                                        <TextView
-                                            android:id="@+id/terminalOutput"
-                                            android:layout_width="match_parent"
-                                            android:layout_height="wrap_content"
-                                            android:padding="12dp"
-                                            android:textColor="@android:color/white"
-                                            android:fontFamily="monospace"
-                                            android:textSize="14sp"/>
-
-                                </ScrollView>
+                                    android:fontFamily="monospace"
+                                    android:inputType="textNoSuggestions"
+                                    android:imeOptions="actionSend"
+                                    android:singleLine="true" />
 
                         </LinearLayout>
-
                 </FrameLayout>
         </RelativeLayout>
 

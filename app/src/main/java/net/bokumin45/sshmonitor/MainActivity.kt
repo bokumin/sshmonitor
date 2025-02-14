@@ -23,6 +23,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -299,6 +300,8 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         graphContainer = findViewById(R.id.graphContainer)
         terminalContainer = findViewById(R.id.terminalContainer)
         btnConnect = findViewById(R.id.btnConnect)
+        commandInput = findViewById(R.id.commandInput)
+        terminalOutput = findViewById(R.id.terminalOutput)
 
         findViewById<Button>(R.id.btnTerminal).setOnClickListener {
             showTerminal()
@@ -328,56 +331,167 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun showGraphs() {
+        isTerminalMode = false
         graphContainer.visibility = View.VISIBLE
         terminalContainer.visibility = View.GONE
+        btnConnect.text = getString(R.string.connect)
     }
-
     private fun showTerminal() {
+        isTerminalMode = true
         graphContainer.visibility = View.GONE
         terminalContainer.visibility = View.VISIBLE
-
-        if (!::commandInput.isInitialized) {
-            commandInput = findViewById(R.id.commandInput)
-            terminalOutput = findViewById(R.id.terminalOutput)
-            setupTerminal()
-            showPrompt()
-        }
+        btnConnect.text = getString(R.string.graph)
+        commandInput.requestFocus()
     }
 
+
+    private lateinit var terminalScrollView: ScrollView
+    private var isTerminalMode = false
+    private var currentTerminalChannel: ChannelExec? = null
+    private val terminalBuffer = StringBuilder()
+    private val TERMINAL_BUFFER_MAX_SIZE = 1000000 // バッファの最大サイズ
+
     private fun setupTerminal() {
+        if (!::commandInput.isInitialized || !::terminalOutput.isInitialized) {
+            commandInput = findViewById(R.id.commandInput)
+            terminalOutput = findViewById(R.id.terminalOutput)
+        }
+
         commandInput.setOnEditorActionListener { v, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_DONE ||
-                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
+            if (actionId == EditorInfo.IME_ACTION_SEND ||
+                (event != null &&
+                        event.keyCode == KeyEvent.KEYCODE_ENTER &&
+                        event.action == KeyEvent.ACTION_DOWN)
             ) {
                 val command = v.text.toString().trim()
                 if (command.isNotEmpty()) {
-                    terminal_executeCommand(command)
-                    commandHistory.add(command)
-                    historyPosition = commandHistory.size
-                    v.text = ""
+                    executeTerminalCommand(command)
+                    v.text=""
                 }
                 true
-            } else false
+            } else {
+                false
+            }
         }
 
         commandInput.setOnKeyListener { v, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN) {
-                when (keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        navigateHistory(-1)
+                when {
+                    keyCode == KeyEvent.KEYCODE_ENTER -> {
+                        val command = (v as EditText).text.toString().trim()
+                        if (command.isNotEmpty()) {
+                            executeTerminalCommand(command)
+                            v.text.clear()
+                        }
                         true
                     }
-                    KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        navigateHistory(1)
-                        true
-                    }
-                    KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_CTRL_RIGHT -> {
-                        handleCtrlKey(keyCode, event)
+                    event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_C -> {
+                        terminateCurrentCommand()
                         true
                     }
                     else -> false
                 }
-            } else false
+            } else {
+                false
+            }
+        }
+
+        commandInput.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                commandInput.postDelayed({
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showSoftInput(commandInput, InputMethodManager.SHOW_IMPLICIT)
+                }, 200)
+            }
+        }
+    }
+
+    private fun executeTerminalCommand(command: String) {
+        if (currentSession?.isConnected != true) {
+            appendToTerminal("Not connected to server\n", Color.RED)
+            return
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val channel = currentSession?.openChannel("exec") as? ChannelExec ?: return@launch
+                currentTerminalChannel = channel
+
+                channel.setPtyType("xterm")
+                channel.setPty(true)
+                channel.setCommand(command)
+
+                val inputStream = channel.inputStream
+                val errorStream = channel.errStream
+
+                channel.connect()
+
+                withContext(Dispatchers.Main) {
+                    appendToTerminal("$ $command\n", Color.GREEN)
+                }
+
+                val buffer = ByteArray(1024)
+                while (channel.isConnected) {
+                    val readCount = inputStream.read(buffer)
+                    if (readCount == -1) break
+
+                    val output = String(buffer, 0, readCount)
+                    withContext(Dispatchers.Main) {
+                        appendToTerminal(output)
+                    }
+                }
+
+                // エラー出力の読み取り
+                val errorOutput = errorStream.bufferedReader().readText()
+                if (errorOutput.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        appendToTerminal(errorOutput, Color.RED)
+                    }
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    appendToTerminal("Error: ${e.message}\n", Color.RED)
+                }
+            } finally {
+                currentTerminalChannel?.disconnect()
+                currentTerminalChannel = null
+            }
+        }
+    }
+
+    private fun appendToTerminal(text: String, color: Int = Color.WHITE) {
+        val spannableString = SpannableStringBuilder(text)
+        spannableString.setSpan(
+            ForegroundColorSpan(color),
+            0,
+            text.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+
+        terminalBuffer.append(text)
+        // バッファサイズの制限
+        if (terminalBuffer.length > TERMINAL_BUFFER_MAX_SIZE) {
+            terminalBuffer.delete(0, terminalBuffer.length - TERMINAL_BUFFER_MAX_SIZE)
+        }
+
+        terminalOutput.append(spannableString)
+        scrollToBottom()
+    }
+
+    private fun terminateCurrentCommand() {
+        currentTerminalChannel?.let { channel ->
+            channel.sendSignal("INT")
+            appendToTerminal("^C\n", Color.RED)
+        }
+    }
+
+
+    override fun onBackPressed() {
+        if (isTerminalMode) {
+            showGraphs()
+        } else {
+            super.onBackPressed()
         }
     }
 
@@ -419,76 +533,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         return false
     }
 
-    private fun terminal_executeCommand(command: String) {
-        if (currentSession?.isConnected != true) {
-            appendOutput("Not connected to server\n")
-            showPrompt()
-            return
-        }
-
-        commandJob = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                currentCommand = currentSession?.openChannel("exec") as ChannelExec
-                currentCommand?.apply {
-                    setCommand(command)
-                    inputStream = null
-                    val outputStream = ByteArrayOutputStream()
-                    setOutputStream(outputStream)
-                    val errorStream = ByteArrayOutputStream()
-                    setErrStream(errorStream)
-                    connect()
-
-                    withContext(Dispatchers.Main) {
-                        appendPromptWithCommand(command)
-                    }
-
-                    while (isConnected) {
-                        delay(100)
-                        val output = outputStream.toString()
-                        if (output.isNotEmpty()) {
-                            withContext(Dispatchers.Main) {
-                                appendOutput(output)
-                                outputStream.reset()
-                            }
-                        }
-
-                        val error = errorStream.toString()
-                        if (error.isNotEmpty()) {
-                            withContext(Dispatchers.Main) {
-                                appendError(error)
-                                errorStream.reset()
-                            }
-                        }
-                    }
-
-                    withContext(Dispatchers.Main) {
-                        showPrompt()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    appendError("Error: ${e.message}\n")
-                    showPrompt()
-                }
-            } finally {
-                currentCommand?.disconnect()
-            }
-        }
-    }
-
-    private fun appendPromptWithCommand(command: String) {
-        val spannableString = SpannableStringBuilder()
-        val promptSpan = ForegroundColorSpan(Color.GREEN)
-        spannableString.append(prompt)
-        spannableString.setSpan(
-            promptSpan,
-            0,
-            prompt.length,
-            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        spannableString.append("$command\n")
-        appendToOutput(spannableString)
-    }
 
     private fun showPrompt() {
         val spannableString = SpannableStringBuilder()
