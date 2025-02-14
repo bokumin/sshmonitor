@@ -12,12 +12,17 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.LocaleList
+import android.text.Spannable
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import android.util.Log
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -210,7 +215,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private lateinit var tvUptime: TextView
     private lateinit var graphContainer: ViewGroup
     private lateinit var terminalContainer: ViewGroup
-    private lateinit var procContainer: ViewGroup
 
     private val gson = Gson()
     private lateinit var serverConfigManager: ServerConfigManager
@@ -228,6 +232,15 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var currentDialogView: View? = null
 
     private var loadingDialog: AlertDialog? = null
+
+    private lateinit var commandInput: EditText
+    private lateinit var terminalOutput: TextView
+    private var commandHistory = mutableListOf<String>()
+    private var historyPosition = -1
+    private var currentInputBeforeHistory: String = ""
+    private val prompt = "$ "
+    private var currentCommand: ChannelExec? = null
+    private var commandJob: Job? = null
 
     private var graphSettings = listOf(
         GraphSetting("CPU", true, 0),
@@ -322,6 +335,199 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private fun showTerminal() {
         graphContainer.visibility = View.GONE
         terminalContainer.visibility = View.VISIBLE
+
+        if (!::commandInput.isInitialized) {
+            commandInput = findViewById(R.id.commandInput)
+            terminalOutput = findViewById(R.id.terminalOutput)
+            setupTerminal()
+            showPrompt()
+        }
+    }
+
+    private fun setupTerminal() {
+        commandInput.setOnEditorActionListener { v, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_DONE ||
+                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
+            ) {
+                val command = v.text.toString().trim()
+                if (command.isNotEmpty()) {
+                    terminal_executeCommand(command)
+                    commandHistory.add(command)
+                    historyPosition = commandHistory.size
+                    v.text = ""
+                }
+                true
+            } else false
+        }
+
+        commandInput.setOnKeyListener { v, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_UP -> {
+                        navigateHistory(-1)
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        navigateHistory(1)
+                        true
+                    }
+                    KeyEvent.KEYCODE_CTRL_LEFT, KeyEvent.KEYCODE_CTRL_RIGHT -> {
+                        handleCtrlKey(keyCode, event)
+                        true
+                    }
+                    else -> false
+                }
+            } else false
+        }
+    }
+
+    private fun navigateHistory(direction: Int) {
+        if (commandHistory.isEmpty()) return
+
+        if (historyPosition == commandHistory.size) {
+            currentInputBeforeHistory = commandInput.text.toString()
+        }
+
+        historyPosition += direction
+
+        when {
+            historyPosition < 0 -> historyPosition = 0
+            historyPosition >= commandHistory.size -> {
+                historyPosition = commandHistory.size
+                commandInput.setText(currentInputBeforeHistory)
+            }
+            else -> commandInput.setText(commandHistory[historyPosition])
+        }
+
+        commandInput.setSelection(commandInput.length())
+    }
+
+    private fun handleCtrlKey(keyCode: Int, event: KeyEvent): Boolean {
+        if (event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_C) {
+            currentCommand?.let {
+                it.disconnect()
+                appendOutput("^C\n")
+                showPrompt()
+            }
+            return true
+        }
+        if (event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_L) {
+            terminalOutput.text = ""
+            showPrompt()
+            return true
+        }
+        return false
+    }
+
+    private fun terminal_executeCommand(command: String) {
+        if (currentSession?.isConnected != true) {
+            appendOutput("Not connected to server\n")
+            showPrompt()
+            return
+        }
+
+        commandJob = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                currentCommand = currentSession?.openChannel("exec") as ChannelExec
+                currentCommand?.apply {
+                    setCommand(command)
+                    inputStream = null
+                    val outputStream = ByteArrayOutputStream()
+                    setOutputStream(outputStream)
+                    val errorStream = ByteArrayOutputStream()
+                    setErrStream(errorStream)
+                    connect()
+
+                    withContext(Dispatchers.Main) {
+                        appendPromptWithCommand(command)
+                    }
+
+                    while (isConnected) {
+                        delay(100)
+                        val output = outputStream.toString()
+                        if (output.isNotEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                appendOutput(output)
+                                outputStream.reset()
+                            }
+                        }
+
+                        val error = errorStream.toString()
+                        if (error.isNotEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                appendError(error)
+                                errorStream.reset()
+                            }
+                        }
+                    }
+
+                    withContext(Dispatchers.Main) {
+                        showPrompt()
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    appendError("Error: ${e.message}\n")
+                    showPrompt()
+                }
+            } finally {
+                currentCommand?.disconnect()
+            }
+        }
+    }
+
+    private fun appendPromptWithCommand(command: String) {
+        val spannableString = SpannableStringBuilder()
+        val promptSpan = ForegroundColorSpan(Color.GREEN)
+        spannableString.append(prompt)
+        spannableString.setSpan(
+            promptSpan,
+            0,
+            prompt.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        spannableString.append("$command\n")
+        appendToOutput(spannableString)
+    }
+
+    private fun showPrompt() {
+        val spannableString = SpannableStringBuilder()
+        val promptSpan = ForegroundColorSpan(Color.GREEN)
+        spannableString.append(prompt)
+        spannableString.setSpan(
+            promptSpan,
+            0,
+            prompt.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        appendToOutput(spannableString)
+    }
+
+    private fun appendOutput(text: String) {
+        appendToOutput(SpannableStringBuilder(text))
+    }
+
+    private fun appendError(text: String) {
+        val spannableString = SpannableStringBuilder(text)
+        spannableString.setSpan(
+            ForegroundColorSpan(Color.RED),
+            0,
+            text.length,
+            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        appendToOutput(spannableString)
+    }
+
+    private fun appendToOutput(text: CharSequence) {
+        terminalOutput.append(text)
+        scrollToBottom()
+    }
+
+    private fun scrollToBottom() {
+        val scrollView = terminalOutput.parent as? ScrollView
+        scrollView?.post {
+            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+        }
     }
 
 
@@ -1580,26 +1786,44 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun setupButtons() {
-        btnConnect.setOnClickListener {
-            val selectedServer = spinnerServers.selectedItem as? ServerConfig
-            if (selectedServer != null) {
-                if (currentSession == null) {
-                    connectSSH(selectedServer)
-                } else {
-                    disconnectSSH()
-                }
-            } else {
-                Toast.makeText(this, getString(R.string.a_server_select), Toast.LENGTH_SHORT).show()
-            }
-        }
+        btnConnect = findViewById(R.id.btnConnect)
 
         findViewById<Button>(R.id.btnTerminal).setOnClickListener {
-            if (currentSession?.isConnected == true) {
-                TerminalDialog(this, currentSession).show()
+            val isInTerminalMode = terminalContainer.visibility == View.VISIBLE
+            if (!isInTerminalMode) {
+                showTerminal()
+                btnConnect.text = getString(R.string.graph)
             } else {
-                Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show()
+                showGraphs()
+                updateConnectButtonText()
             }
         }
 
+        btnConnect.setOnClickListener {
+            if (terminalContainer.visibility == View.VISIBLE) {
+                showGraphs()
+                updateConnectButtonText()
+            } else {
+                val selectedServer = spinnerServers.selectedItem as? ServerConfig
+                if (selectedServer != null) {
+                    if (currentSession == null) {
+                        connectSSH(selectedServer)
+                    } else {
+                        disconnectSSH()
+                    }
+                } else {
+                    Toast.makeText(this, getString(R.string.a_server_select), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
+
+    private fun updateConnectButtonText() {
+        btnConnect.text = if (currentSession != null) {
+            getString(R.string.disconnect)
+        } else {
+            getString(R.string.connect)
+        }
+    }
+
 }
