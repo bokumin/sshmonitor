@@ -296,12 +296,14 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         updateGraphVisibility()
         setupUptimeCard()
         setupButtons()
+        setupTerminal()
 
         graphContainer = findViewById(R.id.graphContainer)
         terminalContainer = findViewById(R.id.terminalContainer)
         btnConnect = findViewById(R.id.btnConnect)
         commandInput = findViewById(R.id.commandInput)
         terminalOutput = findViewById(R.id.terminalOutput)
+        terminalScrollView = findViewById(R.id.terminalScrollView)
 
         findViewById<Button>(R.id.btnTerminal).setOnClickListener {
             showTerminal()
@@ -470,7 +472,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         )
 
         terminalBuffer.append(text)
-        // バッファサイズの制限
         if (terminalBuffer.length > TERMINAL_BUFFER_MAX_SIZE) {
             terminalBuffer.delete(0, terminalBuffer.length - TERMINAL_BUFFER_MAX_SIZE)
         }
