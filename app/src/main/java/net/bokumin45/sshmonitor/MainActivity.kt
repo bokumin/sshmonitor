@@ -360,107 +360,21 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var cursorPosition = 0
     private var previousCommand = ""
 
+    private lateinit var terminalEmulator: TerminalEmulator
+
     private fun setupTerminal() {
-        commandInput = findViewById(R.id.commandInput)
-        terminalOutput = findViewById(R.id.terminalOutput)
-
-        commandInput.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                when (keyCode) {
-                    KeyEvent.KEYCODE_ENTER -> {
-                        val command = commandInput.text.toString()
-                        if (command.isNotEmpty()) {
-                            commandHistory.add(command)
-                            historyIndex = commandHistory.size
-                            executeTerminalCommand(command)
-                            commandInput.setText("")
-                            previousCommand = command
-                        }
-                        true
-                    }
-                    KeyEvent.KEYCODE_DPAD_UP -> {
-                        if (historyIndex > 0) {
-                            if (historyIndex == commandHistory.size) {
-                                currentBuffer = commandInput.text.toString()
-                            }
-                            historyIndex--
-                            commandInput.setText(commandHistory[historyIndex])
-                            commandInput.setSelection(commandInput.length())
-                        }
-                        true
-                    }
-                    KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (historyIndex < commandHistory.size) {
-                            historyIndex++
-                            if (historyIndex == commandHistory.size) {
-                                commandInput.setText(currentBuffer)
-                            } else {
-                                commandInput.setText(commandHistory[historyIndex])
-                            }
-                            commandInput.setSelection(commandInput.length())
-                        }
-                        true
-                    }
-                    KeyEvent.KEYCODE_TAB -> {
-                        // タブ補完の実装（必要に応じて）
-                        true
-                    }
-                    else -> {
-                        if (event.isCtrlPressed) {
-                            when (keyCode) {
-                                KeyEvent.KEYCODE_C -> {
-                                    terminateCurrentCommand()
-                                    true
-                                }
-                                KeyEvent.KEYCODE_L -> {
-                                    clearTerminal()
-                                    true
-                                }
-                                KeyEvent.KEYCODE_A -> {
-                                    commandInput.setSelection(0)
-                                    true
-                                }
-                                KeyEvent.KEYCODE_E -> {
-                                    commandInput.setSelection(commandInput.length())
-                                    true
-                                }
-                                KeyEvent.KEYCODE_U -> {
-                                    commandInput.setText("")
-                                    true
-                                }
-                                KeyEvent.KEYCODE_P -> {
-                                    if (historyIndex > 0) {
-                                        historyIndex--
-                                        commandInput.setText(commandHistory[historyIndex])
-                                        commandInput.setSelection(commandInput.length())
-                                    }
-                                    true
-                                }
-                                KeyEvent.KEYCODE_N -> {
-                                    if (historyIndex < commandHistory.size - 1) {
-                                        historyIndex++
-                                        commandInput.setText(commandHistory[historyIndex])
-                                        commandInput.setSelection(commandInput.length())
-                                    }
-                                    true
-                                }
-                                else -> false
-                            }
-                        } else false
-                    }
-                }
-            } else false
+        terminalEmulator = TerminalEmulator(
+            terminalOutput = findViewById(R.id.terminalOutput),
+            commandInput = findViewById(R.id.commandInput),
+            scrollView = findViewById(R.id.terminalScrollView)
+        ) { command ->
+            executeTerminalCommand(command)
         }
-    }
-
-    private fun clearTerminal() {
-        terminalOutput.text = ""
-        showPrompt()
     }
 
     private fun executeTerminalCommand(command: String) {
         if (currentSession?.isConnected != true) {
-            appendToTerminal("Not connected to server\n", Color.RED)
+            terminalEmulator.appendOutput("Not connected to server\n")
             return
         }
 
@@ -478,10 +392,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
                 channel.connect()
 
-                withContext(Dispatchers.Main) {
-                    appendToTerminal("$ $command\n", Color.GREEN)
-                }
-
                 val buffer = ByteArray(1024)
                 while (channel.isConnected) {
                     val readCount = inputStream.read(buffer)
@@ -489,20 +399,20 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
                     val output = String(buffer, 0, readCount)
                     withContext(Dispatchers.Main) {
-                        appendToTerminal(output)
+                        terminalEmulator.appendOutput(output)
                     }
                 }
 
                 val errorOutput = errorStream.bufferedReader().readText()
                 if (errorOutput.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
-                        appendToTerminal(errorOutput, Color.RED)
+                        terminalEmulator.appendOutput(errorOutput)
                     }
                 }
 
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    appendToTerminal("Error: ${e.message}\n", Color.RED)
+                    terminalEmulator.appendOutput("Error: ${e.message}\n")
                 }
             } finally {
                 currentTerminalChannel?.disconnect()
@@ -543,34 +453,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         } else {
             super.onBackPressed()
         }
-    }
-
-    private fun showPrompt() {
-        val spannableString = SpannableStringBuilder()
-        val promptSpan = ForegroundColorSpan(Color.GREEN)
-        spannableString.append(prompt)
-        spannableString.setSpan(
-            promptSpan,
-            0,
-            prompt.length,
-            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        appendToOutput(spannableString)
-    }
-
-    private fun appendOutput(text: String) {
-        appendToOutput(SpannableStringBuilder(text))
-    }
-
-    private fun appendError(text: String) {
-        val spannableString = SpannableStringBuilder(text)
-        spannableString.setSpan(
-            ForegroundColorSpan(Color.RED),
-            0,
-            text.length,
-            Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-        )
-        appendToOutput(spannableString)
     }
 
     private fun appendToOutput(text: CharSequence) {
@@ -618,22 +500,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             }
 
             isExpanded = !isExpanded
-        }
-    }
-    private fun animateToolbarBackground() {
-        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
-
-        val colorFrom = ContextCompat.getColor(this, R.color.black)
-        val colorTo = ContextCompat.getColor(this, R.color.purple_200)
-
-        ValueAnimator.ofObject(ArgbEvaluator(), colorFrom, colorTo).apply {
-            duration = 2000
-            addUpdateListener { animator ->
-                toolbar.setBackgroundColor(animator.animatedValue as Int)
-            }
-
-            startDelay = 600
-            start()
         }
     }
     private fun initializeGraphViews() {
