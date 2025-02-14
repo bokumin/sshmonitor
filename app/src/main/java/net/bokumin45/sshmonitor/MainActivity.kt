@@ -1,8 +1,6 @@
 package net.bokumin45.sshmonitor
 
-import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
-import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -16,7 +14,6 @@ import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
 import android.util.Log
-import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -28,7 +25,6 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.documentfile.provider.DocumentFile
 import androidx.drawerlayout.widget.DrawerLayout
@@ -46,11 +42,9 @@ import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import kotlinx.coroutines.*
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.security.Security
 import java.util.Locale
 
 
@@ -436,7 +430,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
 
         terminalOutput.append(spannableString)
-        scrollToBottom()
     }
 
     private fun terminateCurrentCommand() {
@@ -452,18 +445,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             showGraphs()
         } else {
             super.onBackPressed()
-        }
-    }
-
-    private fun appendToOutput(text: CharSequence) {
-        terminalOutput.append(text)
-        scrollToBottom()
-    }
-
-    private fun scrollToBottom() {
-        val scrollView = terminalOutput.parent as? ScrollView
-        scrollView?.post {
-            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
         }
     }
 
