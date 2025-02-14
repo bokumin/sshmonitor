@@ -22,8 +22,6 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -70,7 +68,7 @@ data class ServerConfig(
     }
 }
 
-class ServerConfigManager(private val context: Context) {
+class ServerConfigManager(context: Context) {
     private val sharedPreferences = context.getSharedPreferences("ServerConfigs", Context.MODE_PRIVATE)
     private val uriPermissionManager = UriPermissionManager(context)
 
@@ -241,7 +239,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var currentInputBeforeHistory: String = ""
     private val prompt = "$ "
     private var currentCommand: ChannelExec? = null
-    private var commandJob: Job? = null
 
     private var graphSettings = listOf(
         GraphSetting("CPU", true, 0),
@@ -277,7 +274,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             resources.updateConfiguration(config, resources.displayMetrics)
         }
 
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         Security.addProvider(BouncyCastleProvider())
 
         serverConfigManager = ServerConfigManager(this)
@@ -351,61 +348,108 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     private var isTerminalMode = false
     private var currentTerminalChannel: ChannelExec? = null
     private val terminalBuffer = StringBuilder()
-    private val TERMINAL_BUFFER_MAX_SIZE = 1000000 // バッファの最大サイズ
+    private val TERMINAL_BUFFER_MAX_SIZE = 1000000
+    private var historyIndex = -1
+    private var currentBuffer = ""
+    private var cursorPosition = 0
+    private var previousCommand = ""
 
     private fun setupTerminal() {
-        if (!::commandInput.isInitialized || !::terminalOutput.isInitialized) {
-            commandInput = findViewById(R.id.commandInput)
-            terminalOutput = findViewById(R.id.terminalOutput)
-        }
+        commandInput = findViewById(R.id.commandInput)
+        terminalOutput = findViewById(R.id.terminalOutput)
 
-        commandInput.setOnEditorActionListener { v, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_SEND ||
-                (event != null &&
-                        event.keyCode == KeyEvent.KEYCODE_ENTER &&
-                        event.action == KeyEvent.ACTION_DOWN)
-            ) {
-                val command = v.text.toString().trim()
-                if (command.isNotEmpty()) {
-                    executeTerminalCommand(command)
-                    v.text=""
-                }
-                true
-            } else {
-                false
-            }
-        }
-
-        commandInput.setOnKeyListener { v, keyCode, event ->
+        commandInput.setOnKeyListener { _, keyCode, event ->
             if (event.action == KeyEvent.ACTION_DOWN) {
-                when {
-                    keyCode == KeyEvent.KEYCODE_ENTER -> {
-                        val command = (v as EditText).text.toString().trim()
+                when (keyCode) {
+                    KeyEvent.KEYCODE_ENTER -> {
+                        val command = commandInput.text.toString()
                         if (command.isNotEmpty()) {
+                            commandHistory.add(command)
+                            historyIndex = commandHistory.size
                             executeTerminalCommand(command)
-                            v.text.clear()
+                            commandInput.setText("")
+                            previousCommand = command
                         }
                         true
                     }
-                    event.isCtrlPressed && keyCode == KeyEvent.KEYCODE_C -> {
-                        terminateCurrentCommand()
+                    KeyEvent.KEYCODE_DPAD_UP -> {
+                        if (historyIndex > 0) {
+                            if (historyIndex == commandHistory.size) {
+                                currentBuffer = commandInput.text.toString()
+                            }
+                            historyIndex--
+                            commandInput.setText(commandHistory[historyIndex])
+                            commandInput.setSelection(commandInput.length())
+                        }
                         true
                     }
-                    else -> false
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (historyIndex < commandHistory.size) {
+                            historyIndex++
+                            if (historyIndex == commandHistory.size) {
+                                commandInput.setText(currentBuffer)
+                            } else {
+                                commandInput.setText(commandHistory[historyIndex])
+                            }
+                            commandInput.setSelection(commandInput.length())
+                        }
+                        true
+                    }
+                    KeyEvent.KEYCODE_TAB -> {
+                        // タブ補完の実装（必要に応じて）
+                        true
+                    }
+                    else -> {
+                        if (event.isCtrlPressed) {
+                            when (keyCode) {
+                                KeyEvent.KEYCODE_C -> {
+                                    terminateCurrentCommand()
+                                    true
+                                }
+                                KeyEvent.KEYCODE_L -> {
+                                    clearTerminal()
+                                    true
+                                }
+                                KeyEvent.KEYCODE_A -> {
+                                    commandInput.setSelection(0)
+                                    true
+                                }
+                                KeyEvent.KEYCODE_E -> {
+                                    commandInput.setSelection(commandInput.length())
+                                    true
+                                }
+                                KeyEvent.KEYCODE_U -> {
+                                    commandInput.setText("")
+                                    true
+                                }
+                                KeyEvent.KEYCODE_P -> {
+                                    if (historyIndex > 0) {
+                                        historyIndex--
+                                        commandInput.setText(commandHistory[historyIndex])
+                                        commandInput.setSelection(commandInput.length())
+                                    }
+                                    true
+                                }
+                                KeyEvent.KEYCODE_N -> {
+                                    if (historyIndex < commandHistory.size - 1) {
+                                        historyIndex++
+                                        commandInput.setText(commandHistory[historyIndex])
+                                        commandInput.setSelection(commandInput.length())
+                                    }
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else false
+                    }
                 }
-            } else {
-                false
-            }
+            } else false
         }
+    }
 
-        commandInput.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                commandInput.postDelayed({
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showSoftInput(commandInput, InputMethodManager.SHOW_IMPLICIT)
-                }, 200)
-            }
-        }
+    private fun clearTerminal() {
+        terminalOutput.text = ""
+        showPrompt()
     }
 
     private fun executeTerminalCommand(command: String) {
@@ -443,7 +487,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     }
                 }
 
-                // エラー出力の読み取り
                 val errorOutput = errorStream.bufferedReader().readText()
                 if (errorOutput.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -495,45 +538,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             super.onBackPressed()
         }
     }
-
-    private fun navigateHistory(direction: Int) {
-        if (commandHistory.isEmpty()) return
-
-        if (historyPosition == commandHistory.size) {
-            currentInputBeforeHistory = commandInput.text.toString()
-        }
-
-        historyPosition += direction
-
-        when {
-            historyPosition < 0 -> historyPosition = 0
-            historyPosition >= commandHistory.size -> {
-                historyPosition = commandHistory.size
-                commandInput.setText(currentInputBeforeHistory)
-            }
-            else -> commandInput.setText(commandHistory[historyPosition])
-        }
-
-        commandInput.setSelection(commandInput.length())
-    }
-
-    private fun handleCtrlKey(keyCode: Int, event: KeyEvent): Boolean {
-        if (event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_C) {
-            currentCommand?.let {
-                it.disconnect()
-                appendOutput("^C\n")
-                showPrompt()
-            }
-            return true
-        }
-        if (event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_L) {
-            terminalOutput.text = ""
-            showPrompt()
-            return true
-        }
-        return false
-    }
-
 
     private fun showPrompt() {
         val spannableString = SpannableStringBuilder()
