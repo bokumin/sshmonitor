@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'net.bokumin45.sshmonitor'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "net.bokumin45.sshmonitor"
         minSdk 23
-        targetSdk 34
+        targetSdk 35
         versionCode 26
         versionName "4.0"
 
