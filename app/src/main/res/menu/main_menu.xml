@@ -6,6 +6,7 @@
         android:id="@+id/action_graph_settings"
         android:icon="@android:drawable/ic_menu_preferences"
         android:title="@string/graph_settings"
+        android:orderInCategory="100"
         app:showAsAction="always" />
 
 </menu>

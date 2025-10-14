@@ -39,6 +39,7 @@ import com.google.android.material.navigation.NavigationView
 import com.google.gson.Gson
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
+import com.jcraft.jsch.JSchException
 import com.jcraft.jsch.Session
 import kotlinx.coroutines.*
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -59,7 +60,7 @@ data class ServerConfig(
     var isJumpHost: Boolean = false
 ) {
     override fun toString(): String {
-        val prefix = if (isJumpHost) "🔄 " else ""
+        val prefix = if (isJumpHost) "Jump:" else ""
         return "$prefix$host (${username})"
     }
 }
@@ -242,6 +243,13 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                        or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+
         setContentView(R.layout.activity_main)
         title = ""
         val savedLanguage = getSharedPreferences("Settings", MODE_PRIVATE)
@@ -349,6 +357,26 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         chartMemory = findViewById(R.id.chartMemory)
         chartDisk = findViewById(R.id.chartDisk)
         tvUptime = findViewById(R.id.tvUptime)
+
+        adjustTitleBarHeight()
+    }
+
+    private fun adjustTitleBarHeight() {
+        val titleBar = findViewById<LinearLayout>(R.id.titleBar)
+        val statusBarHeight = getStatusBarHeight()
+
+        val layoutParams = titleBar.layoutParams
+        layoutParams.height = statusBarHeight
+        titleBar.layoutParams = layoutParams
+    }
+
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = resources.getDimensionPixelSize(resourceId)
+        }
+        return result
     }
 
     private fun setupToolbar() {
@@ -601,6 +629,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         menu.add(Menu.NONE, R.id.nav_add_server, Menu.NONE, getString(R.string.add_server))
         menu.add(Menu.NONE, R.id.nav_add_jump_host, Menu.NONE, getString(R.string.add_jump_host))
+        menu.add(Menu.NONE, R.id.nav_wifi_scan, Menu.NONE, getString(R.string.wifi_scan))
         menu.add(Menu.NONE, R.id.nav_remove_server, Menu.NONE, getString(R.string.remove_server))
         menu.add(Menu.NONE, R.id.nav_language, Menu.NONE, getString(R.string.change_language))
         menu.add(Menu.NONE, R.id.nav_donate, Menu.NONE, getString(R.string.donate))
@@ -649,7 +678,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
 
         btnSelectKey.setOnClickListener {
             showKeySelectionDialog(selectedKeyUri) { newUri ->
-                selectedKeyUri = newUri  // これは既に存在
+                selectedKeyUri = newUri
             }
         }
 
@@ -667,7 +696,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                         host = host,
                         port = port,
                         username = username,
-                        privateKeyUri = selectedKeyUri,  // selectedKeyUriを使用
+                        privateKeyUri = selectedKeyUri,
                         password = password,
                         jumpHostServer = config.jumpHostServer,
                         isJumpHost = config.isJumpHost
@@ -812,7 +841,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             .setTitle(getString(R.string.donate))
             .setMessage(getString(R.string.donate_message))
             .setPositiveButton(getString(R.string.open_browser)) { _, _ ->
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://bokumin45.server-on.net"))
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://bokumin.org"))
                 startActivity(intent)
             }
             .setNegativeButton(getString(R.string.cancel), null)
@@ -857,6 +886,29 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         loadingDialog?.dismiss()
         loadingDialog = null
     }
+
+    private fun promptForPassphrase(callback: (String?) -> Unit) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val input = EditText(this@MainActivity).apply {
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                hint = "Passphrase"
+            }
+
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Private Key Passphrase")
+                .setMessage("This private key requires a passphrase")
+                .setView(input)
+                .setPositiveButton("OK") { _, _ ->
+                    callback(input.text.toString())
+                }
+                .setNegativeButton("Cancel") { _, _ ->
+                    callback(null)
+                }
+                .setCancelable(false)
+                .show()
+        }
+    }
+
     private fun connectSSH(config: ServerConfig) {
         if (currentSession != null) {
             disconnectSSH()
@@ -872,32 +924,28 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             try {
                 val jsch = JSch()
 
-                config.privateKeyUri?.let { uri ->
-                    val keyBytes = readKeyFile(uri)
-                    addIdentity(jsch, keyBytes)
-                }
+                if (config.privateKeyUri != null) {
+                    addIdentityWithPassphrasePrompt(jsch, config.privateKeyUri!!) { success ->
+                        if (!success) {
+                            CoroutineScope(Dispatchers.Main).launch {
+                                hideLoadingDialog()
+                                btnConnect.text = getString(R.string.connect)
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "Authentication failed",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            return@addIdentityWithPassphrasePrompt
+                        }
 
-                currentSession = if (config.jumpHostServer != null) {
-                    connectViaJumpHost(jsch, config)
-                } else {
-                    jsch.getSession(config.username, config.host, config.port).apply {
-                        setConfig("StrictHostKeyChecking", "no")
-                        config.password?.let { setPassword(it) }
-                        connect(30000)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            continueConnection(jsch, config)
+                        }
                     }
+                } else {
+                    continueConnection(jsch, config)
                 }
-
-                withContext(Dispatchers.Main) {
-                    hideLoadingDialog()
-                    btnConnect.text = getString(R.string.disconnect)
-                    Toast.makeText(
-                        this@MainActivity,
-                        getString(R.string.connection_success),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-
-                startMonitoring()
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
@@ -913,19 +961,120 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
         }
     }
 
-    private fun connectViaJumpHost(jsch: JSch, config: ServerConfig): Session {
+    private suspend fun continueConnection(jsch: JSch, config: ServerConfig) {
+        try {
+            currentSession = if (config.jumpHostServer != null) {
+                connectViaJumpHost(jsch, config)
+            } else {
+                jsch.getSession(config.username, config.host, config.port).apply {
+                    setConfig("StrictHostKeyChecking", "no")
+                    config.password?.let { setPassword(it) }
+                    connect(30000)
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                hideLoadingDialog()
+                btnConnect.text = getString(R.string.disconnect)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.connection_success),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+
+            startMonitoring()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            withContext(Dispatchers.Main) {
+                hideLoadingDialog()
+                btnConnect.text = getString(R.string.connect)
+                Toast.makeText(
+                    this@MainActivity,
+                    getString(R.string.connection_error, e.message),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun addIdentityWithPassphrasePrompt(jsch: JSch, uri: Uri, callback: (Boolean) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val keyBytes = readKeyFile(uri)
+
+                try {
+                    jsch.addIdentity("key", keyBytes, null, null)
+                    callback(true)
+                } catch (e: JSchException) {
+                    if (e.message?.contains("invalid privatekey") == true ||
+                        e.message?.contains("passphrase") == true) {
+
+                        withContext(Dispatchers.Main) {
+                            promptForPassphrase { passphrase ->
+                                if (passphrase != null) {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        try {
+                                            jsch.addIdentity("key", keyBytes, null, passphrase.toByteArray())
+                                            callback(true)
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                            callback(false)
+                                        }
+                                    }
+                                } else {
+                                    callback(false)
+                                }
+                            }
+                        }
+                    } else {
+                        throw e
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                callback(false)
+            }
+        }
+    }
+
+    private suspend fun connectViaJumpHost(jsch: JSch, config: ServerConfig): Session {
         try {
             val jump = config.jumpHostServer!!
+
+            if (jump.privateKeyUri != null) {
+                val jumpKeyBytes = readKeyFile(jump.privateKeyUri!!)
+                try {
+                    jsch.addIdentity("jump_key", jumpKeyBytes, null, null)
+                } catch (e: JSchException) {
+                    if (e.message?.contains("invalid privatekey") == true ||
+                        e.message?.contains("passphrase") == true) {
+
+                        val passphrase = withContext(Dispatchers.Main) {
+                            suspendCancellableCoroutine<String?> { continuation ->
+                                promptForPassphrase { pass ->
+                                    continuation.resume(pass) {}
+                                }
+                            }
+                        }
+
+                        if (passphrase != null) {
+                            jsch.addIdentity("jump_key", jumpKeyBytes, null, passphrase.toByteArray())
+                        } else {
+                            throw IllegalStateException("Jump host passphrase required")
+                        }
+                    } else {
+                        throw e
+                    }
+                }
+            }
+
             jumpSession = jsch.getSession(
                 jump.username,
                 jump.host,
                 jump.port
             ).apply {
                 setConfig("StrictHostKeyChecking", "no")
-                jump.privateKeyUri?.let { uri ->
-                    val keyBytes = readKeyFile(uri)
-                    jsch.addIdentity("jump_key", keyBytes, null, null)
-                }
                 jump.password?.let { setPassword(it) }
                 connect(30000)
             }
@@ -942,10 +1091,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 assignedPort
             ).apply {
                 setConfig("StrictHostKeyChecking", "no")
-                config.privateKeyUri?.let { uri ->
-                    val keyBytes = readKeyFile(uri)
-                    jsch.addIdentity("target_key", keyBytes, null, null)
-                }
                 config.password?.let { setPassword(it) }
                 connect(30000)
             }
@@ -954,6 +1099,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             throw e
         }
     }
+
     private fun disconnectSSH() {
         showLoadingDialog(getString(R.string.disconnecting))
 
@@ -1048,7 +1194,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     }
 
     private fun getGPUUsage(): Float {
-        // NVIDIAのGPUの場合
         val nvidiaSmiOutput = executeCommand("which nvidia-smi").trim()
         if (nvidiaSmiOutput.isNotEmpty()) {
             return executeCommand(
@@ -1069,7 +1214,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 }
         }
 
-        // Intel GPUの場合
         val intelGpuTopOutput = executeCommand("which intel_gpu_top").trim()
         if (intelGpuTopOutput.isNotEmpty()) {
             return executeCommand(

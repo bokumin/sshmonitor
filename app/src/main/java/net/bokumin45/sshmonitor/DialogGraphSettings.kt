@@ -16,7 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 data class GraphSetting(
     val name: String,
     var isVisible: Boolean = false,
-    var order: Int = -1  // -1は未選択状態を表す
+    var order: Int = -1
 )
 
 class DialogGraphSettings(
@@ -52,7 +52,6 @@ class DialogGraphSettings(
             }
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                // Not used
             }
         })
 
@@ -73,7 +72,6 @@ class GraphSettingsAdapter(
     }
 
     init {
-        // 初期化時に既存の選択状態を復元し、順序を振り直す
         settings.filter { it.isVisible }.sortedBy { it.order }.forEachIndexed { index, setting ->
             setting.order = index
         }
@@ -91,7 +89,6 @@ class GraphSettingsAdapter(
         holder.checkbox.text = setting.name
         holder.checkbox.isChecked = setting.isVisible
 
-        // 順序の表示を更新（表示は1から開始）
         if (setting.isVisible && setting.order >= 0) {
             val displayOrder = getDisplayOrderForPosition(position)
             holder.orderText.text = displayOrder.toString()
@@ -103,10 +100,8 @@ class GraphSettingsAdapter(
 
         holder.checkbox.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
-                // チェックされた場合、新しい順序を割り当て
                 setting.order = currentOrder++
             } else {
-                // チェックが外された場合、順序をリセット
                 setting.order = -1
                 reorderItems()
             }
@@ -141,7 +136,6 @@ class GraphSettingsAdapter(
     }
 
     private fun updateOrders() {
-        // ドラッグ&ドロップ後の順序を更新
         val visibleSettings = settings.filter { it.isVisible }.sortedBy { it.order }
         visibleSettings.forEachIndexed { index, setting ->
             setting.order = index
@@ -151,10 +145,9 @@ class GraphSettingsAdapter(
     }
 
     private fun updateSettings() {
-        // 表示順でソートしてから通知
         val sortedSettings = settings.sortedWith(compareBy(
-            { !it.isVisible },  // 表示項目を先頭に
-            { if (it.isVisible) it.order else Int.MAX_VALUE }  // 順序で並び替え
+            { !it.isVisible },
+            { if (it.isVisible) it.order else Int.MAX_VALUE }
         ))
         onSettingsChanged(sortedSettings)
     }

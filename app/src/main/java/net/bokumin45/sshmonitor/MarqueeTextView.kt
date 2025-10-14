@@ -16,8 +16,8 @@ class MarqueeTextView @JvmOverloads constructor(
 
     private var textWidth = 0f
     private var xPos = 0f
-    private val pixelStep = 2f  // 1回の移動ピクセル数
-    private val updateInterval = 50L  // 更新間隔（ミリ秒）
+    private val pixelStep = 2f
+    private val updateInterval = 50L
     private val handler = Handler(Looper.getMainLooper())
     private var isScrolling = false
 
